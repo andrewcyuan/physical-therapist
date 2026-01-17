@@ -1,4 +1,5 @@
 import { AccessToken } from "livekit-server-sdk";
+import { RoomAgentDispatch, RoomConfiguration } from "@livekit/protocol";
 import { NextResponse } from "next/server";
 
 export async function POST(request: Request) {
@@ -16,6 +17,7 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     const { roomName, participantName } = body;
+    const agentName = process.env.LIVEKIT_AGENT_NAME ?? "pt-assistant";
 
     // Generate unique room name if not provided
     const room = roomName || `pt-session-${crypto.randomUUID().slice(0, 8)}`;
@@ -33,6 +35,14 @@ export async function POST(request: Request) {
       canPublish: true,
       canSubscribe: true,
       canPublishData: true,
+    });
+
+    token.roomConfig = new RoomConfiguration({
+      agents: [
+        new RoomAgentDispatch({
+          agentName,
+        }),
+      ],
     });
 
     const jwt = await token.toJwt();
