@@ -250,7 +250,6 @@ export default function BuildExerciseForm({ userId }: BuildExerciseFormProps) {
       const { error: insertError } = await supabase
         .from("exercises")
         .insert({
-          user_id: userId,
           name: formData.name,
           description: formData.description,
           orientation_instructions: formData.orientationInstructions,

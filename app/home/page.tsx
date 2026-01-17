@@ -1,13 +1,10 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import workoutData from "@/data/workouts.json";
 import SignOutButton from "./sign-out-button";
 import BuildExerciseButton from "./BuildExerciseButton";
 import BuildWorkoutButton from "./BuildWorkoutButton";
 import type { Workout } from "@/lib/stores/workoutStore";
-
-const workouts = workoutData.workouts as Workout[];
 
 export default async function HomePage() {
   const supabase = await createClient();
@@ -18,6 +15,11 @@ export default async function HomePage() {
   if (!user) {
     redirect("/login");
   }
+
+  const { data: workouts } = await supabase
+    .from("workouts")
+    .select("*")
+    .order("created_at", { ascending: false });
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -41,7 +43,7 @@ export default async function HomePage() {
         </h2>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          {workouts.map((workout) => (
+          {workouts?.map((workout: Workout) => (
             <Link
               key={workout.id}
               href={`/workout/${workout.id}`}
