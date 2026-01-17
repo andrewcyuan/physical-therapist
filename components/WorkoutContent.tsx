@@ -1,127 +1,38 @@
 "use client";
 
-import { useState } from "react";
-import Link from "next/link";
-import { ArrowLeft, Video } from "lucide-react";
-import PoseTracker from "./PoseTracker";
-import { VoiceAgentProvider, VoiceAgentButton } from "./VoiceAgent";
-
-interface Exercise {
-  name: string;
-  sets: number;
-  reps: string;
-  instructions: string;
-}
-
-interface Workout {
-  id: string;
-  name: string;
-  description: string;
-  duration: string;
-  difficulty: string;
-  exercises: Exercise[];
-}
+import { useEffect } from "react";
+import { useWorkoutStore, type Workout } from "@/lib/stores/workoutStore";
+import { VoiceAgentProvider } from "./VoiceAgent";
+import WorkoutCamera from "./WorkoutCamera";
+import WorkoutOverlay from "./WorkoutOverlay";
 
 interface WorkoutContentProps {
   workout: Workout;
 }
 
 export default function WorkoutContent({ workout }: WorkoutContentProps) {
-  const [isPoseTrackerActive, setIsPoseTrackerActive] = useState(false);
+  const setWorkout = useWorkoutStore((state) => state.setWorkout);
+  const startWorkout = useWorkoutStore((state) => state.startWorkout);
+  const reset = useWorkoutStore((state) => state.reset);
+
+  // Initialize store with workout data
+  useEffect(() => {
+    setWorkout(workout);
+    startWorkout();
+
+    return () => {
+      reset();
+    };
+  }, [workout, setWorkout, startWorkout, reset]);
 
   return (
     <VoiceAgentProvider>
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <header className="border-b border-gray-200 bg-white dark:border-gray-800 dark:bg-black">
-        <div className="mx-auto flex max-w-4xl items-center gap-4 px-4 py-4">
-          <Link
-            href="/home"
-            className="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </Link>
-          <h1 className="text-xl font-bold text-gray-900 dark:text-white">
-            {workout.name}
-          </h1>
-        </div>
-      </header>
+      <div className="fixed inset-0 overflow-hidden">
+        {/* Full-screen camera with pose tracking */}
+        <WorkoutCamera isActive={true} />
 
-      <main className="mx-auto max-w-4xl px-4 py-8">
-        <div className="mb-6">
-          <p className="text-gray-600 dark:text-gray-400">
-            {workout.description}
-          </p>
-          <div className="mt-4 flex flex-wrap gap-4">
-            <span className="inline-flex items-center rounded-full bg-blue-100 px-3 py-1 text-sm font-medium text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-              {workout.duration}
-            </span>
-            <span
-              className={`inline-flex items-center rounded-full px-3 py-1 text-sm font-medium ${
-                workout.difficulty === "Easy"
-                  ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-                  : workout.difficulty === "Medium"
-                    ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200"
-                    : "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
-              }`}
-            >
-              {workout.difficulty}
-            </span>
-          </div>
-        </div>
-
-        {/* Action Buttons */}
-        <div className="mb-6 flex flex-wrap gap-4">
-          <button
-            onClick={() => setIsPoseTrackerActive(true)}
-            className="inline-flex items-center gap-2 rounded-full bg-green-600 px-4 py-2 font-medium text-white transition-colors hover:bg-green-700"
-          >
-            <Video className="h-5 w-5" />
-            Start Pose Tracking
-          </button>
-          <VoiceAgentButton />
-        </div>
-
-        <h2 className="mb-4 text-xl font-semibold text-gray-900 dark:text-white">
-          Exercises
-        </h2>
-
-        <div className="space-y-4">
-          {workout.exercises.map((exercise, index) => (
-            <div
-              key={index}
-              className="rounded-lg border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-800"
-            >
-              <div className="flex items-start justify-between">
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                    {index + 1}. {exercise.name}
-                  </h3>
-                  <p className="mt-1 text-sm text-blue-600 dark:text-blue-400">
-                    {exercise.sets} sets × {exercise.reps}
-                  </p>
-                </div>
-              </div>
-              <p className="mt-3 text-gray-600 dark:text-gray-400">
-                {exercise.instructions}
-              </p>
-            </div>
-          ))}
-        </div>
-
-        <div className="mt-8">
-          <Link
-            href="/home"
-            className="inline-flex items-center rounded-md bg-blue-600 px-4 py-2 font-medium text-white transition-colors hover:bg-blue-700"
-          >
-            Back to Workouts
-          </Link>
-        </div>
-      </main>
-
-      <PoseTracker
-        isActive={isPoseTrackerActive}
-        onClose={() => setIsPoseTrackerActive(false)}
-      />
+        {/* Overlay with workout info, progress bar, navigation */}
+        <WorkoutOverlay />
       </div>
     </VoiceAgentProvider>
   );
