@@ -19,7 +19,7 @@ export default function DifficultySelector({
 
   return (
     <div>
-      <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+      <label className="mb-2 block text-md font-semibold text-zinc-700 dark:text-zinc-300">
         Difficulty
       </label>
       <div className="flex gap-2">

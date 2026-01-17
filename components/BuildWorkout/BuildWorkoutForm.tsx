@@ -75,34 +75,37 @@ export default function BuildWorkoutForm({ userId }: BuildWorkoutFormProps) {
       />
 
       <main className="mx-auto max-w-6xl px-4 py-8">
-        <div className="mb-8 space-y-6">
-          <NameInput value={name} onChange={setName} />
-          <DifficultySelector value={difficulty} onChange={setDifficulty} />
-          <TimeDisplay time={estimatedTime} />
-          <SaveErrorMessage error={saveError} />
-        </div>
 
         <div className="grid gap-8 lg:grid-cols-2">
+          <div className="flex flex-col gap-8">
+            <div className="mb-8 space-y-6">
+              <NameInput value={name} onChange={setName} />
+              <DifficultySelector value={difficulty} onChange={setDifficulty} />
+              <TimeDisplay time={estimatedTime} />
+              <SaveErrorMessage error={saveError} />
+            </div>
+            <div>
+              <h3 className="mb-4 text-lg font-semibold text-zinc-900 dark:text-white">
+                Your Workout ({exerciseSets.length} exercises)
+              </h3>
+              <SelectedExercises
+                exerciseSets={exerciseSets}
+                onRemove={removeExerciseSet}
+                onUpdate={updateExerciseSet}
+              />
+            </div>
+
+          </div>
+
           <div>
-            <h3 className="mb-4 text-lg font-semibold text-zinc-900 dark:text-white">
-              Available Exercises
+            <h3 className="mb-4 text-lg font-medium text-zinc-900 dark:text-white">
+              Add Exercises
             </h3>
             <ExerciseSelector
               exercises={exercises}
               loading={loadingExercises}
               onSelect={handleSelectExercise}
               selectedIds={exerciseSets.map((es) => es.exercises.id)}
-            />
-          </div>
-
-          <div>
-            <h3 className="mb-4 text-lg font-semibold text-zinc-900 dark:text-white">
-              Your Workout ({exerciseSets.length} exercises)
-            </h3>
-            <SelectedExercises
-              exerciseSets={exerciseSets}
-              onRemove={removeExerciseSet}
-              onUpdate={updateExerciseSet}
             />
           </div>
         </div>
@@ -167,7 +170,7 @@ function NameInput({
     <div>
       <label
         htmlFor="workout-name"
-        className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300"
+        className="mb-2 block text-lg font-semibold text-zinc-700 dark:text-zinc-300"
       >
         Workout Name
       </label>
