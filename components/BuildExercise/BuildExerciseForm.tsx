@@ -1,18 +1,19 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   PoseLandmarker,
   FilesetResolver,
   DrawingUtils,
 } from "@mediapipe/tasks-vision";
-import { X } from "lucide-react";
+import { ArrowLeft, Save } from "lucide-react";
 import { extractJointAngles, type AngleFrame, type ThresholdData } from "@/lib/poseUtils";
 import { createClient } from "@/lib/supabase/client";
 
-interface ExerciseBuilderProps {
-  isOpen: boolean;
-  onClose: () => void;
+interface BuildExerciseFormProps {
+  userId: string;
 }
 
 type Step = "form" | "recording" | "trimming";
@@ -23,7 +24,8 @@ interface ExerciseFormData {
   orientationInstructions: string;
 }
 
-export default function ExerciseBuilder({ isOpen, onClose }: ExerciseBuilderProps) {
+export default function BuildExerciseForm({ userId }: BuildExerciseFormProps) {
+  const router = useRouter();
   const [step, setStep] = useState<Step>("form");
   const [formData, setFormData] = useState<ExerciseFormData>({
     name: "",
@@ -71,28 +73,6 @@ export default function ExerciseBuilder({ isOpen, onClose }: ExerciseBuilderProp
       recordingIntervalRef.current = null;
     }
   }, []);
-
-  const handleClose = useCallback(() => {
-    stopCamera();
-    if (poseLandmarkerRef.current) {
-      poseLandmarkerRef.current.close();
-      poseLandmarkerRef.current = null;
-    }
-    if (recordedVideoUrl) {
-      URL.revokeObjectURL(recordedVideoUrl);
-    }
-    setStep("form");
-    setFormData({ name: "", description: "", orientationInstructions: "" });
-    setIsRecording(false);
-    setRecordingTime(0);
-    setRecordedFrames([]);
-    setError(null);
-    setTrimStart(0);
-    setTrimEnd(0);
-    setRecordedVideoUrl(null);
-    recordedChunksRef.current = [];
-    onClose();
-  }, [onClose, stopCamera, recordedVideoUrl]);
 
   const initializeCamera = async () => {
     try {
@@ -267,15 +247,10 @@ export default function ExerciseBuilder({ isOpen, onClose }: ExerciseBuilderProp
     try {
       const supabase = createClient();
 
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        throw new Error("You must be logged in to save exercises");
-      }
-
       const { error: insertError } = await supabase
         .from("exercises")
         .insert({
-          user_id: user.id,
+          user_id: userId,
           name: formData.name,
           description: formData.description,
           orientation_instructions: formData.orientationInstructions,
@@ -286,7 +261,7 @@ export default function ExerciseBuilder({ isOpen, onClose }: ExerciseBuilderProp
         throw new Error(insertError.message);
       }
 
-      handleClose();
+      router.push("/home");
     } catch (err) {
       console.error("Save error:", err);
       setError(err instanceof Error ? err.message : "Failed to save exercise");
@@ -314,27 +289,31 @@ export default function ExerciseBuilder({ isOpen, onClose }: ExerciseBuilderProp
       if (poseLandmarkerRef.current) {
         poseLandmarkerRef.current.close();
       }
+      if (recordedVideoUrl) {
+        URL.revokeObjectURL(recordedVideoUrl);
+      }
     };
-  }, [stopCamera]);
+  }, [stopCamera, recordedVideoUrl]);
 
-  if (!isOpen) return null;
+  const isFormValid =
+    formData.name.trim() &&
+    formData.description.trim() &&
+    formData.orientationInstructions.trim();
+
+  const canSave = step === "trimming" && trimEnd > trimStart;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80">
-      <div className="relative w-full max-w-2xl rounded-lg bg-white p-6 dark:bg-gray-900">
-        <button
-          onClick={handleClose}
-          className="absolute right-4 top-4 rounded-md p-1 text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
-        >
-          <X className="h-5 w-5" />
-        </button>
+    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-900">
+      <Header
+        step={step}
+        canSave={canSave}
+        saving={isSaving}
+        onSave={handleSaveExercise}
+      />
 
-        <h2 className="mb-6 text-xl font-semibold text-gray-900 dark:text-white">
-          Build New Exercise
-        </h2>
-
+      <main className="mx-auto max-w-4xl px-4 py-8">
         {error && (
-          <div className="mb-4 rounded-md bg-red-100 p-3 text-sm text-red-700 dark:bg-red-900/30 dark:text-red-400">
+          <div className="mb-6 rounded-lg bg-red-100 p-4 text-sm text-red-700 dark:bg-red-900/30 dark:text-red-400">
             {error}
           </div>
         )}
@@ -343,6 +322,7 @@ export default function ExerciseBuilder({ isOpen, onClose }: ExerciseBuilderProp
           step={step}
           formData={formData}
           setFormData={setFormData}
+          isFormValid={!!isFormValid}
           onSubmit={handleFormSubmit}
         />
 
@@ -371,15 +351,55 @@ export default function ExerciseBuilder({ isOpen, onClose }: ExerciseBuilderProp
           trimEnd={trimEnd}
           onTrimStartChange={setTrimStart}
           onTrimEndChange={setTrimEnd}
-          isSaving={isSaving}
-          onSave={handleSaveExercise}
           onBack={() => {
             setStep("recording");
             initializeCamera();
           }}
         />
-      </div>
+      </main>
     </div>
+  );
+}
+
+function Header({
+  step,
+  canSave,
+  saving,
+  onSave,
+}: {
+  step: Step;
+  canSave: boolean;
+  saving: boolean;
+  onSave: () => void;
+}) {
+  return (
+    <header className="border-b border-zinc-200 bg-white dark:border-zinc-800 dark:bg-black">
+      <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-4">
+        <div className="flex items-center gap-4">
+          <Link
+            href="/home"
+            className="flex items-center gap-2 text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white"
+          >
+            <ArrowLeft className="h-5 w-5" />
+            <span>Back</span>
+          </Link>
+          <h1 className="text-xl font-bold text-zinc-900 dark:text-white">
+            Build Exercise
+          </h1>
+        </div>
+
+        {step === "trimming" && (
+          <button
+            onClick={onSave}
+            disabled={!canSave || saving}
+            className="flex items-center gap-2 rounded-lg bg-zinc-900 px-4 py-2 font-medium text-white transition-colors hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-100"
+          >
+            <Save className="h-4 w-4" />
+            {saving ? "Saving..." : "Save Exercise"}
+          </button>
+        )}
+      </div>
+    </header>
   );
 }
 
@@ -387,23 +407,19 @@ interface FormStepProps {
   step: Step;
   formData: ExerciseFormData;
   setFormData: React.Dispatch<React.SetStateAction<ExerciseFormData>>;
+  isFormValid: boolean;
   onSubmit: (e: React.FormEvent) => void;
 }
 
-function FormStep({ step, formData, setFormData, onSubmit }: FormStepProps) {
+function FormStep({ step, formData, setFormData, isFormValid, onSubmit }: FormStepProps) {
   if (step !== "form") return null;
 
-  const isValid =
-    formData.name.trim() &&
-    formData.description.trim() &&
-    formData.orientationInstructions.trim();
-
   return (
-    <form onSubmit={onSubmit} className="space-y-4">
+    <form onSubmit={onSubmit} className="space-y-6">
       <div>
         <label
           htmlFor="name"
-          className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300"
+          className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300"
         >
           Exercise Name
         </label>
@@ -412,7 +428,7 @@ function FormStep({ step, formData, setFormData, onSubmit }: FormStepProps) {
           type="text"
           value={formData.name}
           onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
-          className="w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+          className="w-full max-w-md rounded-lg border border-zinc-300 bg-white px-4 py-2 text-zinc-900 placeholder-zinc-400 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white dark:placeholder-zinc-500"
           placeholder="e.g., Bicep Curl"
         />
       </div>
@@ -420,7 +436,7 @@ function FormStep({ step, formData, setFormData, onSubmit }: FormStepProps) {
       <div>
         <label
           htmlFor="description"
-          className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300"
+          className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300"
         >
           Description
         </label>
@@ -429,7 +445,7 @@ function FormStep({ step, formData, setFormData, onSubmit }: FormStepProps) {
           value={formData.description}
           onChange={(e) => setFormData((prev) => ({ ...prev, description: e.target.value }))}
           rows={3}
-          className="w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+          className="w-full rounded-lg border border-zinc-300 bg-white px-4 py-2 text-zinc-900 placeholder-zinc-400 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white dark:placeholder-zinc-500"
           placeholder="Describe the exercise and its benefits..."
         />
       </div>
@@ -437,7 +453,7 @@ function FormStep({ step, formData, setFormData, onSubmit }: FormStepProps) {
       <div>
         <label
           htmlFor="orientation"
-          className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300"
+          className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300"
         >
           Orientation Instructions
         </label>
@@ -448,15 +464,15 @@ function FormStep({ step, formData, setFormData, onSubmit }: FormStepProps) {
             setFormData((prev) => ({ ...prev, orientationInstructions: e.target.value }))
           }
           rows={2}
-          className="w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+          className="w-full rounded-lg border border-zinc-300 bg-white px-4 py-2 text-zinc-900 placeholder-zinc-400 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white dark:placeholder-zinc-500"
           placeholder="e.g., Stand facing the camera with arms at your sides"
         />
       </div>
 
       <button
         type="submit"
-        disabled={!isValid}
-        className="w-full rounded-md bg-blue-600 px-4 py-2 font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+        disabled={!isFormValid}
+        className="rounded-lg bg-zinc-900 px-6 py-2 font-medium text-white transition-colors hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-100"
       >
         Continue to Recording
       </button>
@@ -496,8 +512,8 @@ function RecordingStep({
   const hasRecording = recordedFrames.length > 0;
 
   return (
-    <div className="space-y-4">
-      <div className="relative aspect-[4/3] overflow-hidden rounded-lg bg-gray-900">
+    <div className="space-y-6">
+      <div className="relative aspect-video overflow-hidden rounded-lg bg-zinc-900">
         {isInitializing && (
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="text-center text-white">
@@ -530,11 +546,15 @@ function RecordingStep({
         )}
       </div>
 
+      <p className="text-center text-sm text-zinc-500 dark:text-zinc-400">
+        Position yourself so your full body is visible, then perform the exercise
+      </p>
+
       <div className="flex gap-3">
         <button
           onClick={onBack}
           disabled={isRecording}
-          className="rounded-md border border-gray-300 px-4 py-2 text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+          className="rounded-lg border border-zinc-300 px-4 py-2 text-zinc-700 transition-colors hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
         >
           Back
         </button>
@@ -543,7 +563,7 @@ function RecordingStep({
           <button
             onClick={onStartRecording}
             disabled={isInitializing}
-            className="flex-1 rounded-md bg-green-600 px-4 py-2 font-medium text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex-1 rounded-lg bg-green-600 px-4 py-2 font-medium text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
             Start Recording
           </button>
@@ -552,7 +572,7 @@ function RecordingStep({
         {isRecording && (
           <button
             onClick={onStopRecording}
-            className="flex-1 rounded-md bg-red-600 px-4 py-2 font-medium text-white transition-colors hover:bg-red-700"
+            className="flex-1 rounded-lg bg-red-600 px-4 py-2 font-medium text-white transition-colors hover:bg-red-700"
           >
             Stop Recording
           </button>
@@ -562,23 +582,19 @@ function RecordingStep({
           <>
             <button
               onClick={onStartRecording}
-              className="rounded-md border border-gray-300 px-4 py-2 text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+              className="rounded-lg border border-zinc-300 px-4 py-2 text-zinc-700 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
             >
               Re-record
             </button>
             <button
               onClick={onContinue}
-              className="flex-1 rounded-md bg-blue-600 px-4 py-2 font-medium text-white transition-colors hover:bg-blue-700"
+              className="flex-1 rounded-lg bg-zinc-900 px-4 py-2 font-medium text-white transition-colors hover:bg-zinc-800 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-100"
             >
               Continue to Trim
             </button>
           </>
         )}
       </div>
-
-      <p className="text-center text-sm text-gray-500 dark:text-gray-400">
-        Position yourself so your full body is visible, then perform the exercise
-      </p>
     </div>
   );
 }
@@ -591,8 +607,6 @@ interface TrimStepProps {
   trimEnd: number;
   onTrimStartChange: (value: number) => void;
   onTrimEndChange: (value: number) => void;
-  isSaving: boolean;
-  onSave: () => void;
   onBack: () => void;
 }
 
@@ -604,8 +618,6 @@ function TrimStep({
   trimEnd,
   onTrimStartChange,
   onTrimEndChange,
-  isSaving,
-  onSave,
   onBack,
 }: TrimStepProps) {
   const trimVideoRef = useRef<HTMLVideoElement>(null);
@@ -672,8 +684,8 @@ function TrimStep({
   };
 
   return (
-    <div className="space-y-4">
-      <div className="relative aspect-[4/3] overflow-hidden rounded-lg bg-gray-900">
+    <div className="space-y-6">
+      <div className="relative aspect-video overflow-hidden rounded-lg bg-zinc-900">
         {recordedVideoUrl && (
           <video
             ref={trimVideoRef}
@@ -713,19 +725,19 @@ function TrimStep({
         </div>
       </div>
 
-      <div className="rounded-lg bg-gray-100 p-4 dark:bg-gray-800">
+      <div className="rounded-lg bg-zinc-100 p-4 dark:bg-zinc-800">
         <div className="mb-3 flex items-center justify-between text-sm">
-          <span className="text-gray-600 dark:text-gray-400">
+          <span className="text-zinc-600 dark:text-zinc-400">
             Total: {formatTime(totalDuration)}
           </span>
-          <span className="font-medium text-blue-600 dark:text-blue-400">
+          <span className="font-medium text-zinc-900 dark:text-white">
             Selected: {formatTime(trimmedDuration)} ({trimEnd - trimStart + 1} frames)
           </span>
         </div>
 
-        <div className="relative mb-4 h-10 rounded bg-gray-300 dark:bg-gray-700">
+        <div className="relative mb-4 h-10 rounded bg-zinc-300 dark:bg-zinc-700">
           <div
-            className="absolute h-full bg-blue-500/50"
+            className="absolute h-full bg-zinc-500/50"
             style={{
               left: `${(trimStart / Math.max(totalFrames - 1, 1)) * 100}%`,
               width: `${((trimEnd - trimStart) / Math.max(totalFrames - 1, 1)) * 100}%`,
@@ -806,24 +818,16 @@ function TrimStep({
         </div>
       </div>
 
-      <p className="text-center text-sm text-gray-500 dark:text-gray-400">
+      <p className="text-center text-sm text-zinc-500 dark:text-zinc-400">
         Drag the sliders to trim the beginning and end of your recording
       </p>
 
       <div className="flex gap-3">
         <button
           onClick={onBack}
-          disabled={isSaving}
-          className="rounded-md border border-gray-300 px-4 py-2 text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+          className="rounded-lg border border-zinc-300 px-4 py-2 text-zinc-700 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
         >
           Re-record
-        </button>
-        <button
-          onClick={onSave}
-          disabled={isSaving || trimEnd <= trimStart}
-          className="flex-1 rounded-md bg-blue-600 px-4 py-2 font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {isSaving ? "Saving..." : `Save Exercise (${trimEnd - trimStart + 1} frames)`}
         </button>
       </div>
     </div>
