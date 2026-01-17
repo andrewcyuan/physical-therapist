@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { ArrowLeft, Video } from "lucide-react";
 import PoseTracker from "./PoseTracker";
 import { VoiceAgentProvider, VoiceAgentButton } from "./VoiceAgent";
 
@@ -37,20 +38,7 @@ export default function WorkoutContent({ workout }: WorkoutContentProps) {
             href="/home"
             className="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
           >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-              strokeWidth={2}
-              stroke="currentColor"
-              className="h-5 w-5"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18"
-              />
-            </svg>
+            <ArrowLeft className="h-5 w-5" />
           </Link>
           <h1 className="text-xl font-bold text-gray-900 dark:text-white">
             {workout.name}
@@ -87,20 +75,7 @@ export default function WorkoutContent({ workout }: WorkoutContentProps) {
             onClick={() => setIsPoseTrackerActive(true)}
             className="inline-flex items-center gap-2 rounded-full bg-green-600 px-4 py-2 font-medium text-white transition-colors hover:bg-green-700"
           >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-              strokeWidth={2}
-              stroke="currentColor"
-              className="h-5 w-5"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M15.75 10.5l4.72-4.72a.75.75 0 011.28.53v11.38a.75.75 0 01-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 002.25-2.25v-9a2.25 2.25 0 00-2.25-2.25h-9A2.25 2.25 0 002.25 7.5v9a2.25 2.25 0 002.25 2.25z"
-              />
-            </svg>
+            <Video className="h-5 w-5" />
             Start Pose Tracking
           </button>
           <VoiceAgentButton />

@@ -1,5 +1,6 @@
 "use client";
 
+import { Mic, MicOff, PhoneOff } from "lucide-react";
 import { useVoiceAgentContext } from "./VoiceAgentProvider";
 import {
   useLocalParticipant,
@@ -43,7 +44,7 @@ export function VoiceAgentButton() {
         onClick={connect}
         className="inline-flex items-center gap-2 rounded-full bg-blue-600 px-4 py-2 font-medium text-white transition-colors hover:bg-blue-700"
       >
-        <MicrophoneIcon />
+        <Mic className="h-5 w-5" />
         Talk to PT Assistant
       </button>
     );
@@ -111,7 +112,7 @@ function ConnectedVoiceAgent({ onDisconnect }: { onDisconnect: () => void }) {
         }`}
         title={isMuted ? "Unmute" : "Mute"}
       >
-        {isMuted ? <MicrophoneOffIcon /> : <MicrophoneIcon />}
+        {isMuted ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
       </button>
 
       {/* Disconnect button */}
@@ -120,65 +121,8 @@ function ConnectedVoiceAgent({ onDisconnect }: { onDisconnect: () => void }) {
         className="rounded-full bg-red-100 p-2 text-red-600 transition-colors hover:bg-red-200 dark:bg-red-900 dark:text-red-400"
         title="End conversation"
       >
-        <PhoneOffIcon />
+        <PhoneOff className="h-4 w-4" />
       </button>
     </div>
-  );
-}
-
-function MicrophoneIcon() {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      fill="none"
-      viewBox="0 0 24 24"
-      strokeWidth={2}
-      stroke="currentColor"
-      className="h-5 w-5"
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M12 18.75a6 6 0 006-6v-1.5m-6 7.5a6 6 0 01-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 01-3-3V4.5a3 3 0 116 0v8.25a3 3 0 01-3 3z"
-      />
-    </svg>
-  );
-}
-
-function MicrophoneOffIcon() {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      fill="none"
-      viewBox="0 0 24 24"
-      strokeWidth={2}
-      stroke="currentColor"
-      className="h-4 w-4"
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M12 18.75a6 6 0 006-6v-1.5m-6 7.5a6 6 0 01-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 01-3-3V4.5a3 3 0 116 0v8.25a3 3 0 01-3 3zM3 3l18 18"
-      />
-    </svg>
-  );
-}
-
-function PhoneOffIcon() {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      fill="none"
-      viewBox="0 0 24 24"
-      strokeWidth={2}
-      stroke="currentColor"
-      className="h-4 w-4"
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M15.536 8.464a5 5 0 010 7.072M12 9.5v5m0 0l-3-3m3 3l3-3M3 3l18 18"
-      />
-    </svg>
   );
 }
