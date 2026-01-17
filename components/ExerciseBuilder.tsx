@@ -15,7 +15,7 @@ interface ExerciseBuilderProps {
   onClose: () => void;
 }
 
-type Step = "form" | "recording" | "saving";
+type Step = "form" | "recording" | "trimming";
 
 interface ExerciseFormData {
   name: string;
@@ -36,6 +36,9 @@ export default function ExerciseBuilder({ isOpen, onClose }: ExerciseBuilderProp
   const [isInitializing, setIsInitializing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [trimStart, setTrimStart] = useState(0);
+  const [trimEnd, setTrimEnd] = useState(0);
+  const [recordedVideoUrl, setRecordedVideoUrl] = useState<string | null>(null);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -45,11 +48,16 @@ export default function ExerciseBuilder({ isOpen, onClose }: ExerciseBuilderProp
   const recordingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const recordingStartRef = useRef<number>(0);
   const currentLandmarksRef = useRef<ReturnType<typeof extractJointAngles> | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordedChunksRef = useRef<Blob[]>([]);
 
   const stopCamera = useCallback(() => {
     if (animationFrameRef.current) {
       cancelAnimationFrame(animationFrameRef.current);
       animationFrameRef.current = null;
+    }
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      mediaRecorderRef.current.stop();
     }
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((track) => track.stop());
@@ -70,14 +78,21 @@ export default function ExerciseBuilder({ isOpen, onClose }: ExerciseBuilderProp
       poseLandmarkerRef.current.close();
       poseLandmarkerRef.current = null;
     }
+    if (recordedVideoUrl) {
+      URL.revokeObjectURL(recordedVideoUrl);
+    }
     setStep("form");
     setFormData({ name: "", description: "", orientationInstructions: "" });
     setIsRecording(false);
     setRecordingTime(0);
     setRecordedFrames([]);
     setError(null);
+    setTrimStart(0);
+    setTrimEnd(0);
+    setRecordedVideoUrl(null);
+    recordedChunksRef.current = [];
     onClose();
-  }, [onClose, stopCamera]);
+  }, [onClose, stopCamera, recordedVideoUrl]);
 
   const initializeCamera = async () => {
     try {
@@ -172,8 +187,28 @@ export default function ExerciseBuilder({ isOpen, onClose }: ExerciseBuilderProp
   const startRecording = () => {
     setRecordedFrames([]);
     setRecordingTime(0);
+    recordedChunksRef.current = [];
+    if (recordedVideoUrl) {
+      URL.revokeObjectURL(recordedVideoUrl);
+      setRecordedVideoUrl(null);
+    }
     recordingStartRef.current = performance.now();
     setIsRecording(true);
+
+    if (streamRef.current) {
+      const mediaRecorder = new MediaRecorder(streamRef.current, {
+        mimeType: "video/webm;codecs=vp9",
+      });
+      mediaRecorderRef.current = mediaRecorder;
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          recordedChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.start(100);
+    }
 
     recordingIntervalRef.current = setInterval(() => {
       const elapsed = performance.now() - recordingStartRef.current;
@@ -195,10 +230,21 @@ export default function ExerciseBuilder({ isOpen, onClose }: ExerciseBuilderProp
       clearInterval(recordingIntervalRef.current);
       recordingIntervalRef.current = null;
     }
+
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      mediaRecorderRef.current.onstop = () => {
+        const blob = new Blob(recordedChunksRef.current, { type: "video/webm" });
+        const url = URL.createObjectURL(blob);
+        setRecordedVideoUrl(url);
+      };
+      mediaRecorderRef.current.stop();
+    }
   };
 
   const handleSaveExercise = async () => {
-    if (recordedFrames.length === 0) {
+    const trimmedFrames = recordedFrames.slice(trimStart, trimEnd + 1);
+
+    if (trimmedFrames.length === 0) {
       setError("No recording data to save");
       return;
     }
@@ -206,27 +252,38 @@ export default function ExerciseBuilder({ isOpen, onClose }: ExerciseBuilderProp
     setIsSaving(true);
     setError(null);
 
+    const startTimestamp = trimmedFrames[0].timestamp;
+    const normalizedFrames = trimmedFrames.map((frame) => ({
+      ...frame,
+      timestamp: frame.timestamp - startTimestamp,
+    }));
+
     const thresholdData: ThresholdData = {
-      duration: recordedFrames[recordedFrames.length - 1].timestamp,
+      duration: normalizedFrames[normalizedFrames.length - 1].timestamp,
       sampleRate: 100,
-      frames: recordedFrames,
+      frames: normalizedFrames,
     };
 
     try {
-      const response = await fetch("/api/exercises", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      const supabase = createClient();
+
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        throw new Error("You must be logged in to save exercises");
+      }
+
+      const { error: insertError } = await supabase
+        .from("exercises")
+        .insert({
+          user_id: user.id,
           name: formData.name,
           description: formData.description,
           orientation_instructions: formData.orientationInstructions,
           threshold_data: thresholdData,
-        }),
-      });
+        });
 
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || "Failed to save exercise");
+      if (insertError) {
+        throw new Error(insertError.message);
       }
 
       handleClose();
@@ -242,6 +299,13 @@ export default function ExerciseBuilder({ isOpen, onClose }: ExerciseBuilderProp
     e.preventDefault();
     setStep("recording");
     initializeCamera();
+  };
+
+  const handleGoToTrimming = () => {
+    stopCamera();
+    setTrimStart(0);
+    setTrimEnd(recordedFrames.length - 1);
+    setStep("trimming");
   };
 
   useEffect(() => {
@@ -288,15 +352,30 @@ export default function ExerciseBuilder({ isOpen, onClose }: ExerciseBuilderProp
           isRecording={isRecording}
           recordingTime={recordingTime}
           recordedFrames={recordedFrames}
-          isSaving={isSaving}
           videoRef={videoRef}
           canvasRef={canvasRef}
           onStartRecording={startRecording}
           onStopRecording={stopRecording}
-          onSave={handleSaveExercise}
+          onContinue={handleGoToTrimming}
           onBack={() => {
             stopCamera();
             setStep("form");
+          }}
+        />
+
+        <TrimStep
+          step={step}
+          recordedFrames={recordedFrames}
+          recordedVideoUrl={recordedVideoUrl}
+          trimStart={trimStart}
+          trimEnd={trimEnd}
+          onTrimStartChange={setTrimStart}
+          onTrimEndChange={setTrimEnd}
+          isSaving={isSaving}
+          onSave={handleSaveExercise}
+          onBack={() => {
+            setStep("recording");
+            initializeCamera();
           }}
         />
       </div>
@@ -391,12 +470,11 @@ interface RecordingStepProps {
   isRecording: boolean;
   recordingTime: number;
   recordedFrames: AngleFrame[];
-  isSaving: boolean;
   videoRef: React.RefObject<HTMLVideoElement | null>;
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
   onStartRecording: () => void;
   onStopRecording: () => void;
-  onSave: () => void;
+  onContinue: () => void;
   onBack: () => void;
 }
 
@@ -406,12 +484,11 @@ function RecordingStep({
   isRecording,
   recordingTime,
   recordedFrames,
-  isSaving,
   videoRef,
   canvasRef,
   onStartRecording,
   onStopRecording,
-  onSave,
+  onContinue,
   onBack,
 }: RecordingStepProps) {
   if (step !== "recording") return null;
@@ -456,7 +533,7 @@ function RecordingStep({
       <div className="flex gap-3">
         <button
           onClick={onBack}
-          disabled={isRecording || isSaving}
+          disabled={isRecording}
           className="rounded-md border border-gray-300 px-4 py-2 text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
         >
           Back
@@ -485,17 +562,15 @@ function RecordingStep({
           <>
             <button
               onClick={onStartRecording}
-              disabled={isSaving}
-              className="rounded-md border border-gray-300 px-4 py-2 text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+              className="rounded-md border border-gray-300 px-4 py-2 text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
             >
               Re-record
             </button>
             <button
-              onClick={onSave}
-              disabled={isSaving}
-              className="flex-1 rounded-md bg-blue-600 px-4 py-2 font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+              onClick={onContinue}
+              className="flex-1 rounded-md bg-blue-600 px-4 py-2 font-medium text-white transition-colors hover:bg-blue-700"
             >
-              {isSaving ? "Saving..." : `Save Exercise (${recordedFrames.length} frames)`}
+              Continue to Trim
             </button>
           </>
         )}
@@ -504,6 +579,253 @@ function RecordingStep({
       <p className="text-center text-sm text-gray-500 dark:text-gray-400">
         Position yourself so your full body is visible, then perform the exercise
       </p>
+    </div>
+  );
+}
+
+interface TrimStepProps {
+  step: Step;
+  recordedFrames: AngleFrame[];
+  recordedVideoUrl: string | null;
+  trimStart: number;
+  trimEnd: number;
+  onTrimStartChange: (value: number) => void;
+  onTrimEndChange: (value: number) => void;
+  isSaving: boolean;
+  onSave: () => void;
+  onBack: () => void;
+}
+
+function TrimStep({
+  step,
+  recordedFrames,
+  recordedVideoUrl,
+  trimStart,
+  trimEnd,
+  onTrimStartChange,
+  onTrimEndChange,
+  isSaving,
+  onSave,
+  onBack,
+}: TrimStepProps) {
+  const trimVideoRef = useRef<HTMLVideoElement>(null);
+  const [currentFrame, setCurrentFrame] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(false);
+
+  useEffect(() => {
+    if (step !== "trimming") return;
+    setCurrentFrame(trimStart);
+  }, [step, trimStart]);
+
+  useEffect(() => {
+    if (!trimVideoRef.current || !recordedFrames[currentFrame]) return;
+    const targetTime = recordedFrames[currentFrame].timestamp / 1000;
+    trimVideoRef.current.currentTime = targetTime;
+  }, [currentFrame, recordedFrames]);
+
+  useEffect(() => {
+    if (!isPlaying || !trimVideoRef.current) return;
+
+    const interval = setInterval(() => {
+      setCurrentFrame((prev) => {
+        if (prev >= trimEnd) {
+          setIsPlaying(false);
+          return trimStart;
+        }
+        return prev + 1;
+      });
+    }, 100);
+
+    return () => clearInterval(interval);
+  }, [isPlaying, trimStart, trimEnd]);
+
+  if (step !== "trimming") return null;
+
+  const totalFrames = recordedFrames.length;
+  const totalDuration = totalFrames > 0 ? recordedFrames[totalFrames - 1].timestamp : 0;
+  const trimmedDuration = trimEnd >= trimStart && recordedFrames[trimEnd] && recordedFrames[trimStart]
+    ? recordedFrames[trimEnd].timestamp - recordedFrames[trimStart].timestamp
+    : 0;
+
+  const formatTime = (ms: number) => {
+    const seconds = ms / 1000;
+    return seconds.toFixed(1) + "s";
+  };
+
+  const startTime = recordedFrames[trimStart]?.timestamp ?? 0;
+  const endTime = recordedFrames[trimEnd]?.timestamp ?? 0;
+
+  const handlePlayPause = () => {
+    if (isPlaying) {
+      setIsPlaying(false);
+    } else {
+      if (currentFrame >= trimEnd) {
+        setCurrentFrame(trimStart);
+      }
+      setIsPlaying(true);
+    }
+  };
+
+  const handleScrub = (frameIndex: number) => {
+    setCurrentFrame(frameIndex);
+    setIsPlaying(false);
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="relative aspect-[4/3] overflow-hidden rounded-lg bg-gray-900">
+        {recordedVideoUrl && (
+          <video
+            ref={trimVideoRef}
+            src={recordedVideoUrl}
+            className="h-full w-full object-cover"
+            style={{ transform: "scaleX(-1)" }}
+            muted
+            playsInline
+          />
+        )}
+
+        {!recordedVideoUrl && (
+          <div className="flex h-full items-center justify-center text-white">
+            Loading video...
+          </div>
+        )}
+
+        <div className="absolute bottom-4 left-4 right-4 flex items-center gap-3">
+          <button
+            onClick={handlePlayPause}
+            className="rounded-full bg-white/20 p-2 text-white backdrop-blur-sm hover:bg-white/30"
+          >
+            {isPlaying ? (
+              <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
+                <rect x="6" y="4" width="4" height="16" />
+                <rect x="14" y="4" width="4" height="16" />
+              </svg>
+            ) : (
+              <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
+                <polygon points="5,3 19,12 5,21" />
+              </svg>
+            )}
+          </button>
+          <span className="text-sm font-medium text-white">
+            {formatTime(recordedFrames[currentFrame]?.timestamp ?? 0)}
+          </span>
+        </div>
+      </div>
+
+      <div className="rounded-lg bg-gray-100 p-4 dark:bg-gray-800">
+        <div className="mb-3 flex items-center justify-between text-sm">
+          <span className="text-gray-600 dark:text-gray-400">
+            Total: {formatTime(totalDuration)}
+          </span>
+          <span className="font-medium text-blue-600 dark:text-blue-400">
+            Selected: {formatTime(trimmedDuration)} ({trimEnd - trimStart + 1} frames)
+          </span>
+        </div>
+
+        <div className="relative mb-4 h-10 rounded bg-gray-300 dark:bg-gray-700">
+          <div
+            className="absolute h-full bg-blue-500/50"
+            style={{
+              left: `${(trimStart / Math.max(totalFrames - 1, 1)) * 100}%`,
+              width: `${((trimEnd - trimStart) / Math.max(totalFrames - 1, 1)) * 100}%`,
+            }}
+          />
+
+          <div
+            className="absolute top-0 h-full w-0.5 bg-white"
+            style={{ left: `${(currentFrame / Math.max(totalFrames - 1, 1)) * 100}%` }}
+          />
+
+          <input
+            type="range"
+            min={0}
+            max={totalFrames - 1}
+            value={currentFrame}
+            onChange={(e) => handleScrub(parseInt(e.target.value))}
+            className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+          />
+        </div>
+
+        <div className="space-y-3">
+          <div>
+            <div className="mb-1 flex items-center justify-between">
+              <label className="text-sm font-medium text-green-600 dark:text-green-400">
+                Start: {formatTime(startTime)}
+              </label>
+              <button
+                onClick={() => onTrimStartChange(currentFrame)}
+                className="text-xs text-green-600 hover:underline dark:text-green-400"
+              >
+                Set to current
+              </button>
+            </div>
+            <input
+              type="range"
+              min={0}
+              max={totalFrames - 1}
+              value={trimStart}
+              onChange={(e) => {
+                const value = parseInt(e.target.value);
+                if (value < trimEnd) {
+                  onTrimStartChange(value);
+                  handleScrub(value);
+                }
+              }}
+              className="w-full accent-green-500"
+            />
+          </div>
+
+          <div>
+            <div className="mb-1 flex items-center justify-between">
+              <label className="text-sm font-medium text-red-600 dark:text-red-400">
+                End: {formatTime(endTime)}
+              </label>
+              <button
+                onClick={() => onTrimEndChange(currentFrame)}
+                className="text-xs text-red-600 hover:underline dark:text-red-400"
+              >
+                Set to current
+              </button>
+            </div>
+            <input
+              type="range"
+              min={0}
+              max={totalFrames - 1}
+              value={trimEnd}
+              onChange={(e) => {
+                const value = parseInt(e.target.value);
+                if (value > trimStart) {
+                  onTrimEndChange(value);
+                  handleScrub(value);
+                }
+              }}
+              className="w-full accent-red-500"
+            />
+          </div>
+        </div>
+      </div>
+
+      <p className="text-center text-sm text-gray-500 dark:text-gray-400">
+        Drag the sliders to trim the beginning and end of your recording
+      </p>
+
+      <div className="flex gap-3">
+        <button
+          onClick={onBack}
+          disabled={isSaving}
+          className="rounded-md border border-gray-300 px-4 py-2 text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+        >
+          Re-record
+        </button>
+        <button
+          onClick={onSave}
+          disabled={isSaving || trimEnd <= trimStart}
+          className="flex-1 rounded-md bg-blue-600 px-4 py-2 font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {isSaving ? "Saving..." : `Save Exercise (${trimEnd - trimStart + 1} frames)`}
+        </button>
+      </div>
     </div>
   );
 }

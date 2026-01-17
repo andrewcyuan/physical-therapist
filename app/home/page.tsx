@@ -4,6 +4,7 @@ import Link from "next/link";
 import workoutData from "@/data/workouts.json";
 import SignOutButton from "./sign-out-button";
 import BuildExerciseButton from "./BuildExerciseButton";
+import BuildWorkoutButton from "./BuildWorkoutButton";
 import type { Workout } from "@/lib/stores/workoutStore";
 
 const workouts = workoutData.workouts as Workout[];
@@ -26,7 +27,6 @@ export default async function HomePage() {
             Your Physical Therapist
           </h1>
           <div className="flex items-center gap-4">
-            <BuildExerciseButton />
             <span className="text-sm text-gray-600 dark:text-gray-400">
               {user.email}
             </span>
@@ -58,19 +58,25 @@ export default async function HomePage() {
                   {workout.time} min
                 </span>
                 <span
-                  className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium capitalize ${
-                    workout.difficulty === "easy"
-                      ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-                      : workout.difficulty === "medium"
-                        ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200"
-                        : "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
-                  }`}
+                  className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium capitalize ${workout.difficulty === "easy"
+                    ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                    : workout.difficulty === "medium"
+                      ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200"
+                      : "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
+                    }`}
                 >
                   {workout.difficulty}
                 </span>
               </div>
             </Link>
           ))}
+        </div>
+        <h2 className="mb-3 mt-8 text-2xl font-semibold text-gray-900 dark:text-white">
+          Create
+        </h2>
+        <div className="flex flex-col items-start gap-2 pb-4">
+          <BuildWorkoutButton />
+          <BuildExerciseButton />
         </div>
       </main>
     </div>
