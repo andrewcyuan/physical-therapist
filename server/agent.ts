@@ -20,7 +20,7 @@ import type {
 import {
   PT_INSTRUCTIONS,
   buildExerciseContextSystemMessage,
-  buildFormAlertPrompt,
+  buildFormAlertSayMessage,
   buildGreetingPrompt,
 } from "./prompts";
 
@@ -34,7 +34,11 @@ if (!process.env.ELEVEN_API_KEY && process.env.ELEVENLABS_API_KEY) {
 
 export default defineAgent({
   prewarm: async (proc: JobProcess) => {
-    proc.userData.vad = await silero.VAD.load();
+    proc.userData.vad = await silero.VAD.load({
+      minSpeechDuration: 0.5,
+      minSilenceDuration: 0.5,
+      activationThreshold: 0.7,
+    });
   },
   entry: async (ctx: JobContext) => {
     const vad = ctx.proc.userData.vad! as silero.VAD;
@@ -106,9 +110,7 @@ export default defineAgent({
         }
 
         if (message.type === "form_alert") {
-          session.generateReply({
-            instructions: buildFormAlertPrompt(message, exerciseContext),
-          });
+          session.say(buildFormAlertSayMessage(message, exerciseContext));
         }
       } catch (err) {
         console.error("Failed to parse data message:", err);

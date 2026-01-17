@@ -28,16 +28,15 @@ They are starting with ${message.currentExercise.name}: ${message.currentExercis
 They should do ${message.reps} reps for ${message.sets} sets.
 Briefly explain the exercise and remind them about their positioning: ${message.currentExercise.orientation}`;
 
-export const buildFormAlertPrompt = (
+export const buildFormAlertSayMessage = (
   message: FormAlertMessage,
   exerciseContext: ExerciseContextMessage | null
 ) => {
   const exerciseInfo = exerciseContext
-    ? `The user is currently doing "${exerciseContext.currentExercise.name}" (Set ${exerciseContext.currentSet} of ${exerciseContext.sets}, ${exerciseContext.reps} reps). `
+    ? `You're on "${exerciseContext.currentExercise.name}" (set ${exerciseContext.currentSet} of ${exerciseContext.sets}). `
     : "";
 
-  return `${exerciseInfo}A form issue was detected: "${message.alert}" (severity: ${message.severity}).
-Give a brief, encouraging correction. Keep it to 1-2 sentences.`;
+  return `${exerciseInfo}${message.severity === "warning" ? "Quick fix" : "Quick tip"}: ${message.alert}`;
 };
 
 export const buildExerciseContextSystemMessage = (

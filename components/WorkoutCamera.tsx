@@ -205,7 +205,7 @@ export default function WorkoutCamera({ isActive = true }: WorkoutCameraProps) {
       );
     };
 
-    const interval = setInterval(sendMockAlert, 20000);
+    const interval = setInterval(sendMockAlert, 10000);
     return () => clearInterval(interval);
   }, [isActive, room]);
 
