@@ -1,0 +1,163 @@
+{
+  "workouts": [
+    {
+      "id": "1",
+      "name": "Lower Back Stretches",
+      "description": "A series of gentle stretches to relieve lower back tension and improve flexibility",
+      "duration": "15 min",
+      "difficulty": "Easy",
+      "exercises": [
+        {
+          "name": "Cat-Cow Stretch",
+          "sets": 3,
+          "reps": "10 each",
+          "instructions": "Start on hands and knees. Alternate between arching your back up (cat) and dropping your belly down (cow)."
+        },
+        {
+          "name": "Child's Pose",
+          "sets": 1,
+          "reps": "Hold 30 seconds",
+          "instructions": "Kneel and sit back on your heels, stretching arms forward on the floor."
+        },
+        {
+          "name": "Knee-to-Chest Stretch",
+          "sets": 3,
+          "reps": "Hold 20 seconds each side",
+          "instructions": "Lie on your back and pull one knee toward your chest while keeping the other leg flat."
+        }
+      ]
+    },
+    {
+      "id": "2",
+      "name": "Shoulder Mobility",
+      "description": "Exercises to improve shoulder range of motion and reduce stiffness",
+      "duration": "20 min",
+      "difficulty": "Medium",
+      "exercises": [
+        {
+          "name": "Arm Circles",
+          "sets": 3,
+          "reps": "15 each direction",
+          "instructions": "Extend arms to sides and make small circles, gradually increasing size."
+        },
+        {
+          "name": "Wall Slides",
+          "sets": 3,
+          "reps": "12",
+          "instructions": "Stand with back against wall, arms in 'W' position. Slide arms up to 'Y' position and back down."
+        },
+        {
+          "name": "Cross-Body Stretch",
+          "sets": 2,
+          "reps": "Hold 30 seconds each side",
+          "instructions": "Pull one arm across your body at shoulder height using the opposite hand."
+        },
+        {
+          "name": "Doorway Stretch",
+          "sets": 2,
+          "reps": "Hold 30 seconds",
+          "instructions": "Stand in doorway with arms on frame at 90 degrees, gently lean forward."
+        }
+      ]
+    },
+    {
+      "id": "3",
+      "name": "Knee Strengthening",
+      "description": "Build strength around the knee joint to improve stability and reduce pain",
+      "duration": "25 min",
+      "difficulty": "Medium",
+      "exercises": [
+        {
+          "name": "Straight Leg Raises",
+          "sets": 3,
+          "reps": "15 each leg",
+          "instructions": "Lie on back, one knee bent, one leg straight. Raise straight leg to height of bent knee."
+        },
+        {
+          "name": "Wall Sits",
+          "sets": 3,
+          "reps": "Hold 30 seconds",
+          "instructions": "Lean against wall with knees at 90 degrees as if sitting in a chair."
+        },
+        {
+          "name": "Step-Ups",
+          "sets": 3,
+          "reps": "10 each leg",
+          "instructions": "Step up onto a low platform, focusing on using the stepping leg to lift your body."
+        },
+        {
+          "name": "Clamshells",
+          "sets": 3,
+          "reps": "15 each side",
+          "instructions": "Lie on side with knees bent. Keep feet together and raise top knee like a clamshell opening."
+        }
+      ]
+    },
+    {
+      "id": "4",
+      "name": "Core Stability",
+      "description": "Strengthen your core muscles to support your spine and improve posture",
+      "duration": "20 min",
+      "difficulty": "Medium",
+      "exercises": [
+        {
+          "name": "Dead Bug",
+          "sets": 3,
+          "reps": "10 each side",
+          "instructions": "Lie on back with arms up and knees at 90 degrees. Lower opposite arm and leg while keeping back flat."
+        },
+        {
+          "name": "Bird Dog",
+          "sets": 3,
+          "reps": "10 each side",
+          "instructions": "On hands and knees, extend opposite arm and leg while maintaining a stable spine."
+        },
+        {
+          "name": "Plank",
+          "sets": 3,
+          "reps": "Hold 30 seconds",
+          "instructions": "Hold a push-up position on forearms, keeping body in a straight line."
+        },
+        {
+          "name": "Bridge",
+          "sets": 3,
+          "reps": "15",
+          "instructions": "Lie on back with knees bent, lift hips toward ceiling, squeezing glutes at top."
+        }
+      ]
+    },
+    {
+      "id": "5",
+      "name": "Ankle Recovery",
+      "description": "Gentle exercises to rehabilitate ankle injuries and improve stability",
+      "duration": "15 min",
+      "difficulty": "Easy",
+      "exercises": [
+        {
+          "name": "Ankle Circles",
+          "sets": 3,
+          "reps": "10 each direction",
+          "instructions": "Lift foot off ground and rotate ankle in circles, both clockwise and counterclockwise."
+        },
+        {
+          "name": "Alphabet Writing",
+          "sets": 1,
+          "reps": "Full alphabet each foot",
+          "instructions": "Use your big toe to trace each letter of the alphabet in the air."
+        },
+        {
+          "name": "Calf Raises",
+          "sets": 3,
+          "reps": "15",
+          "instructions": "Stand on both feet, raise up onto toes, then slowly lower back down."
+        },
+        {
+          "name": "Single-Leg Balance",
+          "sets": 3,
+          "reps": "Hold 30 seconds each side",
+          "instructions": "Stand on one foot, maintaining balance. Progress by closing eyes."
+        }
+      ]
+    }
+  ]
+}
