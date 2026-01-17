@@ -1,8 +1,11 @@
 "use client";
 
-import { LiveKitRoom, RoomAudioRenderer } from "@livekit/components-react";
+import { LiveKitRoom, RoomAudioRenderer, useRoomContext } from "@livekit/components-react";
 import "@livekit/components-styles";
+import { DataPacket_Kind } from "livekit-client";
 import { ReactNode, useState, useCallback, useEffect } from "react";
+import { useWorkoutStore } from "@/lib/stores/workoutStore";
+import type { ExerciseContextMessage } from "@/types/agentMessages";
 
 interface ConnectionDetails {
   serverUrl: string;
@@ -14,6 +17,41 @@ interface ConnectionDetails {
 interface VoiceAgentProviderProps {
   children: ReactNode;
   autoConnect?: boolean;
+}
+
+function ExerciseContextSender() {
+  const room = useRoomContext();
+  const workout = useWorkoutStore((state) => state.workout);
+  const currentExerciseIndex = useWorkoutStore((state) => state.currentExerciseIndex);
+  const currentSetIndex = useWorkoutStore((state) => state.currentSetIndex);
+
+  useEffect(() => {
+    if (!room || !workout) return;
+
+    const exerciseSet = workout.exercises[currentExerciseIndex];
+    if (!exerciseSet) return;
+
+    const message: ExerciseContextMessage = {
+      type: "exercise_context",
+      workout: { name: workout.name, difficulty: workout.difficulty },
+      currentExercise: {
+        name: exerciseSet.exercises.name,
+        description: exerciseSet.exercises.description,
+        orientation: exerciseSet.exercises.orientation_instructions,
+      },
+      sets: exerciseSet.num_sets,
+      currentSet: currentSetIndex + 1,
+      reps: exerciseSet.num_reps,
+    };
+
+    const encoder = new TextEncoder();
+    room.localParticipant.publishData(
+      encoder.encode(JSON.stringify(message)),
+      { reliable: true }
+    );
+  }, [room, workout, currentExerciseIndex, currentSetIndex]);
+
+  return null;
 }
 
 export function VoiceAgentProvider({ children, autoConnect = false }: VoiceAgentProviderProps) {
@@ -84,6 +122,7 @@ export function VoiceAgentProvider({ children, autoConnect = false }: VoiceAgent
       >
         {children}
         <RoomAudioRenderer />
+        <ExerciseContextSender />
       </VoiceAgentContext.Provider>
     </LiveKitRoom>
   );

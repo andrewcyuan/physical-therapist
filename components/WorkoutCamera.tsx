@@ -6,6 +6,15 @@ import {
   FilesetResolver,
   DrawingUtils,
 } from "@mediapipe/tasks-vision";
+import { useMaybeRoomContext } from "@livekit/components-react";
+import type { FormAlertMessage } from "@/types/agentMessages";
+
+const MOCK_ALERTS = [
+  "keep_back_straight",
+  "bend_knees_more",
+  "slow_down_movement",
+  "maintain_balance",
+];
 
 interface WorkoutCameraProps {
   isActive?: boolean;
@@ -17,6 +26,7 @@ export default function WorkoutCamera({ isActive = true }: WorkoutCameraProps) {
   const poseLandmarkerRef = useRef<PoseLandmarker | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const room = useMaybeRoomContext();
 
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -176,6 +186,28 @@ export default function WorkoutCamera({ isActive = true }: WorkoutCameraProps) {
       }
     };
   }, [isActive, stopTracking]);
+
+  useEffect(() => {
+    if (!isActive || !room?.localParticipant) return;
+
+    const sendMockAlert = () => {
+      const randomAlert = MOCK_ALERTS[Math.floor(Math.random() * MOCK_ALERTS.length)];
+      const message: FormAlertMessage = {
+        type: "form_alert",
+        alert: randomAlert,
+        severity: "info",
+      };
+
+      const encoder = new TextEncoder();
+      room.localParticipant.publishData(
+        encoder.encode(JSON.stringify(message)),
+        { reliable: true }
+      );
+    };
+
+    const interval = setInterval(sendMockAlert, 20000);
+    return () => clearInterval(interval);
+  }, [isActive, room]);
 
   return (
     <div className="absolute inset-0 overflow-hidden bg-black">

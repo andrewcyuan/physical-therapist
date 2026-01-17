@@ -10,33 +10,27 @@ import * as livekit from "@livekit/agents-plugin-livekit";
 import * as elevenlabs from "@livekit/agents-plugin-elevenlabs";
 import * as silero from "@livekit/agents-plugin-silero";
 import { BackgroundVoiceCancellation } from "@livekit/noise-cancellation-node";
+import { DataPacketKind } from "@livekit/rtc-node";
 import { fileURLToPath } from "node:url";
 import dotenv from "dotenv";
+import type {
+  ExerciseContextMessage,
+  FormAlertMessage,
+} from "../types/agentMessages";
+import {
+  PT_INSTRUCTIONS,
+  buildExerciseContextSystemMessage,
+  buildFormAlertPrompt,
+  buildGreetingPrompt,
+} from "./prompts";
+
+type AgentMessage = ExerciseContextMessage | FormAlertMessage;
 
 // Load env from root .env.local
 dotenv.config({ path: ".env.local" });
 if (!process.env.ELEVEN_API_KEY && process.env.ELEVENLABS_API_KEY) {
   process.env.ELEVEN_API_KEY = process.env.ELEVENLABS_API_KEY;
 }
-
-const PT_INSTRUCTIONS = `You are a friendly and knowledgeable physical therapy assistant. Your role is to help users with their physical therapy exercises and answer questions about their workout routines.
-
-Key responsibilities:
-- Guide users through exercises with clear, step-by-step instructions
-- Provide encouragement and motivation during workouts
-- Answer questions about proper form and technique
-- Explain the benefits of each exercise
-- Remind users about safety and to stop if they feel pain
-- Suggest modifications for exercises if needed
-
-Important guidelines:
-- Always prioritize safety - remind users to consult their healthcare provider for medical advice
-- Use simple, clear language when explaining exercises
-- Be encouraging and supportive
-- Ask clarifying questions if you need more context about their condition or goals
-- Keep responses concise and actionable during exercises
-
-Remember: You are an assistant to support their physical therapy journey, not a replacement for professional medical advice.`;
 
 export default defineAgent({
   prewarm: async (proc: JobProcess) => {
@@ -68,18 +62,68 @@ export default defineAgent({
       agent: assistant,
       room: ctx.room,
       inputOptions: {
-        // For telephony applications, use TelephonyBackgroundVoiceCancellation for best results.
         noiseCancellation: BackgroundVoiceCancellation(),
       },
     });
 
     await ctx.connect();
 
-    const handle = session.generateReply({
-      instructions:
-        "Greet the user warmly and let them know you're here to help with their physical therapy exercises. Ask how you can assist them today.",
+    let exerciseContext: ExerciseContextMessage | null = null;
+    let exerciseContextMessageId: string | null = null;
+    let hasGreeted = false;
+    const decoder = new TextDecoder();
+
+    ctx.room.on("dataReceived", async (payload: Uint8Array, participant, kind) => {
+      if (kind !== DataPacketKind.KIND_RELIABLE) return;
+
+      try {
+        const message = JSON.parse(decoder.decode(payload)) as AgentMessage;
+
+        if (message.type === "exercise_context") {
+          exerciseContext = message;
+          const chatCtx = assistant.chatCtx.copy();
+
+          if (exerciseContextMessageId) {
+            const previousIndex = chatCtx.indexById(exerciseContextMessageId);
+            if (previousIndex !== undefined) {
+              chatCtx.items.splice(previousIndex, 1);
+            }
+          }
+
+          const contextMessage = chatCtx.addMessage({
+            role: "system",
+            content: buildExerciseContextSystemMessage(message),
+          });
+          exerciseContextMessageId = contextMessage.id;
+          await assistant.updateChatCtx(chatCtx);
+
+          if (!hasGreeted) {
+            hasGreeted = true;
+            session.generateReply({
+              instructions: buildGreetingPrompt(message),
+            });
+          }
+        }
+
+        if (message.type === "form_alert") {
+          session.generateReply({
+            instructions: buildFormAlertPrompt(message, exerciseContext),
+          });
+        }
+      } catch (err) {
+        console.error("Failed to parse data message:", err);
+      }
     });
-    await handle.waitForPlayout();
+
+    setTimeout(() => {
+      if (!hasGreeted) {
+        hasGreeted = true;
+        session.generateReply({
+          instructions:
+            "Greet the user warmly and let them know you're here to help with their physical therapy exercises. Ask how you can assist them today.",
+        });
+      }
+    }, 3000);
   },
 });
 
