@@ -17,7 +17,8 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     const { roomName, participantName } = body;
-    const agentName = process.env.LIVEKIT_AGENT_NAME ?? "pt-assistant";
+    const agentName =
+      process.env.LIVEKIT_AGENT_NAME ?? "physical-therapist";
 
     // Generate unique room name if not provided
     const room = roomName || `pt-session-${crypto.randomUUID().slice(0, 8)}`;

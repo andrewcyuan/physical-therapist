@@ -18,6 +18,7 @@ export interface ExerciseSet {
 
 export interface Workout {
   id: string;
+  owner: string;
   name: string;
   difficulty: "easy" | "medium" | "hard";
   time: number;

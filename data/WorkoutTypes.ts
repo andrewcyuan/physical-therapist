@@ -1,6 +1,7 @@
 
 type Workout = {
     id: string;
+    owner: string;
     name: string;
     exercises: ExerciseSet[]
     difficulty: "easy" | "medium" | "hard";

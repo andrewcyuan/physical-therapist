@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import workoutData from "@/data/workouts.json";
 import SignOutButton from "./sign-out-button";
+import BuildExerciseButton from "./BuildExerciseButton";
 import type { Workout } from "@/lib/stores/workoutStore";
 
 const workouts = workoutData.workouts as Workout[];
@@ -25,6 +26,7 @@ export default async function HomePage() {
             Your Physical Therapist
           </h1>
           <div className="flex items-center gap-4">
+            <BuildExerciseButton />
             <span className="text-sm text-gray-600 dark:text-gray-400">
               {user.email}
             </span>
