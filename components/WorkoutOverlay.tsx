@@ -11,10 +11,12 @@ export default function WorkoutOverlay() {
   const currentSetIndex = useWorkoutStore((state) => state.currentSetIndex);
   const next = useWorkoutStore((state) => state.next);
   const prev = useWorkoutStore((state) => state.prev);
-  const currentExercise = useCurrentExercise();
+  const currentExerciseSet = useCurrentExercise();
   const { canGoNext, canGoPrev } = useWorkoutProgress();
 
-  if (!workout || !currentExercise) return null;
+  if (!workout || !currentExerciseSet) return null;
+
+  const exercise = currentExerciseSet.exercises;
 
   return (
     <div className="pointer-events-none absolute inset-0 z-10 flex flex-col">
@@ -32,13 +34,13 @@ export default function WorkoutOverlay() {
             <div>
               <h1 className="text-sm font-bold text-white">{workout.name}</h1>
               <div className="flex gap-2">
-                <span className="text-xs text-white/70">{workout.duration}</span>
+                <span className="text-xs text-white/70">{workout.time} min</span>
                 <span className="text-xs text-white/50">•</span>
                 <span
-                  className={`text-xs ${
-                    workout.difficulty === "Easy"
+                  className={`text-xs capitalize ${
+                    workout.difficulty === "easy"
                       ? "text-green-400"
-                      : workout.difficulty === "Medium"
+                      : workout.difficulty === "medium"
                         ? "text-yellow-400"
                         : "text-red-400"
                   }`}
@@ -63,13 +65,13 @@ export default function WorkoutOverlay() {
           {/* Exercise Info - Left aligned above progress bar */}
           <div className="mb-4">
             <h2 className="text-base font-semibold text-white drop-shadow-lg">
-              {currentExercise.name}
+              {exercise.name}
             </h2>
             <p className="mt-0.5 text-xs text-white/80">
-              Set {currentSetIndex + 1} of {currentExercise.sets} • {currentExercise.reps}
+              Set {currentSetIndex + 1} of {currentExerciseSet.num_sets} • {currentExerciseSet.num_reps} reps
             </p>
             <p className="mt-1 text-xs text-white/60 line-clamp-2">
-              {currentExercise.instructions}
+              {exercise.orientation_instructions}
             </p>
           </div>
 

@@ -10,19 +10,19 @@ export default function ProgressBar() {
 
   if (!workout) return null;
 
-  const exercises = workout.exercises;
+  const exerciseSets = workout.exercises;
 
   return (
     <div className="flex w-full items-center gap-1.5">
-      {exercises.map((exercise, exerciseIdx) => {
+      {exerciseSets.map((exerciseSet, exerciseIdx) => {
         const isCurrent = exerciseIdx === currentExerciseIndex;
         const isCompleted = exerciseIdx < currentExerciseIndex;
-        const totalSets = exercise.sets;
+        const totalSets = exerciseSet.num_sets;
         const shouldSubdivide = isCurrent && totalSets > 1;
 
         return (
           <div
-            key={exerciseIdx}
+            key={exerciseSet.id}
             className={`relative flex-1 ${isCurrent ? "flex-[2]" : "flex-1"} transition-all duration-300`}
           >
             {shouldSubdivide ? (
@@ -43,7 +43,7 @@ export default function ProgressBar() {
                             ? "bg-green-400"
                             : "bg-white/30"
                       }`}
-                      aria-label={`Set ${setIdx + 1} of ${exercise.name}`}
+                      aria-label={`Set ${setIdx + 1} of ${exerciseSet.exercises.name}`}
                     />
                   );
                 })}
@@ -59,7 +59,7 @@ export default function ProgressBar() {
                       ? "bg-green-400"
                       : "bg-white/30"
                 }`}
-                aria-label={exercise.name}
+                aria-label={exerciseSet.exercises.name}
               />
             )}
           </div>

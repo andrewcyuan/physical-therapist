@@ -18,6 +18,7 @@ type ExerciseSet = {
 type Exercise = {
     id: string;
     name: string;
+    description: string;
     threshold_data: object;
     orientation_instructions: string; // how the user should be oriented relative to the camera
 }

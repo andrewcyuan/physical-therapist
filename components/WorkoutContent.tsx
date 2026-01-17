@@ -26,7 +26,7 @@ export default function WorkoutContent({ workout }: WorkoutContentProps) {
   }, [workout, setWorkout, startWorkout, reset]);
 
   return (
-    <VoiceAgentProvider>
+    <VoiceAgentProvider autoConnect>
       <div className="fixed inset-0 overflow-hidden">
         {/* Full-screen camera with pose tracking */}
         <WorkoutCamera isActive={true} />

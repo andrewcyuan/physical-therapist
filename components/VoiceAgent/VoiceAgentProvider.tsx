@@ -2,7 +2,7 @@
 
 import { LiveKitRoom, RoomAudioRenderer } from "@livekit/components-react";
 import "@livekit/components-styles";
-import { ReactNode, useState, useCallback } from "react";
+import { ReactNode, useState, useCallback, useEffect } from "react";
 
 interface ConnectionDetails {
   serverUrl: string;
@@ -13,15 +13,18 @@ interface ConnectionDetails {
 
 interface VoiceAgentProviderProps {
   children: ReactNode;
+  autoConnect?: boolean;
 }
 
-export function VoiceAgentProvider({ children }: VoiceAgentProviderProps) {
+export function VoiceAgentProvider({ children, autoConnect = false }: VoiceAgentProviderProps) {
   const [connectionDetails, setConnectionDetails] =
     useState<ConnectionDetails | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [hasManuallyDisconnected, setHasManuallyDisconnected] = useState(false);
 
   const connect = useCallback(async () => {
+    setHasManuallyDisconnected(false);
     setIsConnecting(true);
     setError(null);
 
@@ -46,8 +49,16 @@ export function VoiceAgentProvider({ children }: VoiceAgentProviderProps) {
   }, []);
 
   const disconnect = useCallback(() => {
+    setHasManuallyDisconnected(true);
     setConnectionDetails(null);
   }, []);
+
+  // Auto-connect on mount if autoConnect is true (and user hasn't manually disconnected)
+  useEffect(() => {
+    if (autoConnect && !connectionDetails && !isConnecting && !hasManuallyDisconnected) {
+      connect();
+    }
+  }, [autoConnect, connectionDetails, isConnecting, hasManuallyDisconnected, connect]);
 
   if (!connectionDetails) {
     return (

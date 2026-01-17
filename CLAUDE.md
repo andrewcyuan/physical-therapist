@@ -27,13 +27,9 @@ This is an app to give live physical therapy guidance. The app will use live vid
 
 1. **Supabase Client**: Authentication and database access via `utils/supabase/client.ts` and `utils/supabase/server.ts`
 
-### Data Flow
+### Frontend
 
-1. Pages in the `/app` directory define routes using the Next.js App Router
-2. Components utilize Supabase for data fetching either through Tanstack Query or direct API calls
-3. Authentication state is managed through Supabase Auth and middleware
-4. Client-side state is managed with Jotai atoms (defined in `utils/atoms.ts`)
-5. Server-side operations use Next.js API routes in `/app/api`
+Always use tailwind zinc!
 
 ### Deployment
 

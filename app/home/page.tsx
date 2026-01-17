@@ -3,6 +3,9 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import workoutData from "@/data/workouts.json";
 import SignOutButton from "./sign-out-button";
+import type { Workout } from "@/lib/stores/workoutStore";
+
+const workouts = workoutData.workouts as Workout[];
 
 export default async function HomePage() {
   const supabase = await createClient();
@@ -13,8 +16,6 @@ export default async function HomePage() {
   if (!user) {
     redirect("/login");
   }
-
-  const { workouts } = workoutData;
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -48,17 +49,17 @@ export default async function HomePage() {
                 {workout.name}
               </h3>
               <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-                {workout.description}
+                {workout.exercises.length} exercises
               </p>
               <div className="mt-4 flex gap-4">
                 <span className="inline-flex items-center rounded-full bg-blue-100 px-3 py-1 text-xs font-medium text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-                  {workout.duration}
+                  {workout.time} min
                 </span>
                 <span
-                  className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ${
-                    workout.difficulty === "Easy"
+                  className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium capitalize ${
+                    workout.difficulty === "easy"
                       ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-                      : workout.difficulty === "Medium"
+                      : workout.difficulty === "medium"
                         ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200"
                         : "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
                   }`}

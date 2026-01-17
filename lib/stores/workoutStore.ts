@@ -1,19 +1,27 @@
 import { create } from "zustand";
 
 export interface Exercise {
+  id: string;
   name: string;
-  sets: number;
-  reps: string;
-  instructions: string;
+  description: string;
+  threshold_data: object;
+  orientation_instructions: string;
+}
+
+export interface ExerciseSet {
+  id: string;
+  exercises: Exercise;
+  num_sets: number;
+  num_reps: number;
+  rest_between: number;
 }
 
 export interface Workout {
   id: string;
   name: string;
-  description: string;
-  duration: string;
-  difficulty: string;
-  exercises: Exercise[];
+  difficulty: "easy" | "medium" | "hard";
+  time: number;
+  exercises: ExerciseSet[];
 }
 
 interface WorkoutState {
@@ -45,38 +53,30 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
     const { workout, currentExerciseIndex, currentSetIndex } = get();
     if (!workout) return;
 
-    const currentExercise = workout.exercises[currentExerciseIndex];
-    const totalSets = currentExercise.sets;
+    const currentExerciseSet = workout.exercises[currentExerciseIndex];
+    const totalSets = currentExerciseSet.num_sets;
     const totalExercises = workout.exercises.length;
 
-    // If there are more sets in current exercise
     if (currentSetIndex < totalSets - 1) {
       set({ currentSetIndex: currentSetIndex + 1 });
-    }
-    // If there are more exercises
-    else if (currentExerciseIndex < totalExercises - 1) {
+    } else if (currentExerciseIndex < totalExercises - 1) {
       set({ currentExerciseIndex: currentExerciseIndex + 1, currentSetIndex: 0 });
     }
-    // At the end - do nothing or could trigger completion
   },
 
   prev: () => {
     const { workout, currentExerciseIndex, currentSetIndex } = get();
     if (!workout) return;
 
-    // If not at first set of current exercise
     if (currentSetIndex > 0) {
       set({ currentSetIndex: currentSetIndex - 1 });
-    }
-    // If not at first exercise, go to last set of previous exercise
-    else if (currentExerciseIndex > 0) {
-      const prevExercise = workout.exercises[currentExerciseIndex - 1];
+    } else if (currentExerciseIndex > 0) {
+      const prevExerciseSet = workout.exercises[currentExerciseIndex - 1];
       set({
         currentExerciseIndex: currentExerciseIndex - 1,
-        currentSetIndex: prevExercise.sets - 1,
+        currentSetIndex: prevExerciseSet.num_sets - 1,
       });
     }
-    // At the beginning - do nothing
   },
 
   goToExercise: (exerciseIndex, setIndex = 0) => {
@@ -84,8 +84,8 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
     if (!workout) return;
     if (exerciseIndex < 0 || exerciseIndex >= workout.exercises.length) return;
 
-    const exercise = workout.exercises[exerciseIndex];
-    const validSetIndex = Math.max(0, Math.min(setIndex, exercise.sets - 1));
+    const exerciseSet = workout.exercises[exerciseIndex];
+    const validSetIndex = Math.max(0, Math.min(setIndex, exerciseSet.num_sets - 1));
 
     set({ currentExerciseIndex: exerciseIndex, currentSetIndex: validSetIndex });
   },
@@ -107,8 +107,8 @@ export const useWorkoutProgress = () => {
 
   if (!workout) return { canGoNext: false, canGoPrev: false, isComplete: false };
 
-  const currentExercise = workout.exercises[currentExerciseIndex];
-  const isLastSet = currentSetIndex >= currentExercise.sets - 1;
+  const currentExerciseSet = workout.exercises[currentExerciseIndex];
+  const isLastSet = currentSetIndex >= currentExerciseSet.num_sets - 1;
   const isLastExercise = currentExerciseIndex >= workout.exercises.length - 1;
   const isFirstSet = currentSetIndex === 0;
   const isFirstExercise = currentExerciseIndex === 0;
