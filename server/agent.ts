@@ -15,16 +15,18 @@ import { fileURLToPath } from "node:url";
 import dotenv from "dotenv";
 import type {
   ExerciseContextMessage,
+  ExerciseSwitchMessage,
   FormAlertMessage,
 } from "../types/agentMessages";
 import {
   PT_INSTRUCTIONS,
   buildExerciseContextSystemMessage,
+  buildExerciseSwitchSayMessage,
   buildFormAlertSayMessage,
   buildGreetingPrompt,
 } from "./prompts";
 
-type AgentMessage = ExerciseContextMessage | FormAlertMessage;
+type AgentMessage = ExerciseContextMessage | FormAlertMessage | ExerciseSwitchMessage;
 
 // Load env from root .env.local
 dotenv.config({ path: ".env.local" });
@@ -111,6 +113,10 @@ export default defineAgent({
 
         if (message.type === "form_alert") {
           session.say(buildFormAlertSayMessage(message, exerciseContext));
+        }
+
+        if (message.type === "exercise_switch") {
+          session.say(buildExerciseSwitchSayMessage(message));
         }
       } catch (err) {
         console.error("Failed to parse data message:", err);

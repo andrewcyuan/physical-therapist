@@ -13,4 +13,15 @@ export type FormAlertMessage = {
   severity: "info" | "warning";
 };
 
-export type AgentMessage = ExerciseContextMessage | FormAlertMessage;
+export type ExerciseSwitchMessage = {
+  type: "exercise_switch";
+  exerciseName: string;
+  currentSet: number;
+  totalSets: number;
+  isNewExercise: boolean;
+};
+
+export type AgentMessage =
+  | ExerciseContextMessage
+  | FormAlertMessage
+  | ExerciseSwitchMessage;

@@ -3,9 +3,9 @@
 import { LiveKitRoom, RoomAudioRenderer, useRoomContext } from "@livekit/components-react";
 import "@livekit/components-styles";
 import { DataPacket_Kind } from "livekit-client";
-import { ReactNode, useState, useCallback, useEffect } from "react";
+import { ReactNode, useState, useCallback, useEffect, useRef } from "react";
 import { useWorkoutStore } from "@/lib/stores/workoutStore";
-import type { ExerciseContextMessage } from "@/types/agentMessages";
+import type { ExerciseContextMessage, ExerciseSwitchMessage } from "@/types/agentMessages";
 
 interface ConnectionDetails {
   serverUrl: string;
@@ -49,6 +49,50 @@ function ExerciseContextSender() {
       encoder.encode(JSON.stringify(message)),
       { reliable: true }
     );
+  }, [room, workout, currentExerciseIndex, currentSetIndex]);
+
+  return null;
+}
+
+function ExerciseSwitchSender() {
+  const room = useRoomContext();
+  const workout = useWorkoutStore((state) => state.workout);
+  const currentExerciseIndex = useWorkoutStore((state) => state.currentExerciseIndex);
+  const currentSetIndex = useWorkoutStore((state) => state.currentSetIndex);
+
+  const prevExerciseIndex = useRef<number | null>(null);
+  const prevSetIndex = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (!room || !workout) return;
+
+    const exerciseSet = workout.exercises[currentExerciseIndex];
+    if (!exerciseSet) return;
+
+    const isInitialRender =
+      prevExerciseIndex.current === null && prevSetIndex.current === null;
+    const exerciseChanged = prevExerciseIndex.current !== currentExerciseIndex;
+    const setChanged = prevSetIndex.current !== currentSetIndex;
+
+    prevExerciseIndex.current = currentExerciseIndex;
+    prevSetIndex.current = currentSetIndex;
+
+    if (isInitialRender) return;
+
+    if (!exerciseChanged && !setChanged) return;
+
+    const message: ExerciseSwitchMessage = {
+      type: "exercise_switch",
+      exerciseName: exerciseSet.exercises.name,
+      currentSet: currentSetIndex + 1,
+      totalSets: exerciseSet.num_sets,
+      isNewExercise: exerciseChanged,
+    };
+
+    const encoder = new TextEncoder();
+    room.localParticipant.publishData(encoder.encode(JSON.stringify(message)), {
+      reliable: true,
+    });
   }, [room, workout, currentExerciseIndex, currentSetIndex]);
 
   return null;
@@ -123,6 +167,7 @@ export function VoiceAgentProvider({ children, autoConnect = false }: VoiceAgent
         {children}
         <RoomAudioRenderer />
         <ExerciseContextSender />
+        <ExerciseSwitchSender />
       </VoiceAgentContext.Provider>
     </LiveKitRoom>
   );

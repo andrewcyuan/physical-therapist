@@ -1,5 +1,6 @@
 import type {
   ExerciseContextMessage,
+  ExerciseSwitchMessage,
   FormAlertMessage,
 } from "../types/agentMessages";
 
@@ -43,3 +44,10 @@ export const buildExerciseContextSystemMessage = (
   message: ExerciseContextMessage
 ) =>
   `Workout context: "${message.workout.name}" (${message.workout.difficulty}). Current exercise: ${message.currentExercise.name} - ${message.currentExercise.description}. Positioning: ${message.currentExercise.orientation}. Reps: ${message.reps}, Set ${message.currentSet} of ${message.sets}.`;
+
+export const buildExerciseSwitchSayMessage = (message: ExerciseSwitchMessage) => {
+  if (message.isNewExercise) {
+    return `Now we're going to start ${message.exerciseName}!`;
+  }
+  return `It's time for set ${message.currentSet} of ${message.totalSets}!`;
+};
