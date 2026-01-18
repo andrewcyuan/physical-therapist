@@ -8,12 +8,15 @@ interface UseOvershootVisionOptions {
   enabled?: boolean;
 }
 
+export type OvershootStatus = "idle" | "loading" | "active" | "error";
+
 export function useOvershootVision({
   enabled = true,
 }: UseOvershootVisionOptions = {}) {
   const room = useRoomContext();
   const visionRef = useRef<RealtimeVision | null>(null);
-  const [isInitialized, setIsInitialized] = useState(false);
+  const [status, setStatus] = useState<OvershootStatus>("idle");
+  const [error, setError] = useState<string | null>(null);
   const [currentContext, setCurrentContext] = useState<string>("");
 
   const overshootApiKey = process.env.NEXT_PUBLIC_OVERSHOOT_API_KEY;
@@ -85,13 +88,15 @@ export function useOvershootVision({
     }
 
     if (!overshootApiKey) {
-      console.warn(
-        "[OvershootVision] ⚠ No Overshoot API key configured (NEXT_PUBLIC_OVERSHOOT_API_KEY). Vision will not start.",
-      );
+      const msg = "No Overshoot API key configured (NEXT_PUBLIC_OVERSHOOT_API_KEY). Vision will not start.";
+      console.warn("[OvershootVision] ⚠ " + msg);
+      setError(msg);
+      setStatus("error");
       return;
     }
 
     try {
+      setStatus("loading");
       console.log(
         "[OvershootVision] 🎬 Initializing Overshoot RealtimeVision...",
       );
@@ -112,7 +117,6 @@ export function useOvershootVision({
         onResult: (result) => {
           const context = result.result;
           setCurrentContext(context);
-          setIsInitialized(true);
           sendVisionContext(context);
           console.log(
             "[OvershootVision] 📊 Analysis result:",
@@ -132,8 +136,11 @@ export function useOvershootVision({
 
       await vision.start();
       console.log("[OvershootVision] ✅ Vision stream started successfully");
+      setStatus("active");
     } catch (error) {
       console.error("[OvershootVision] ✗ Failed to initialize:", error);
+      setStatus("error");
+      setError(error instanceof Error ? error.message : "Unknown error initializing vision");
     }
   }, [overshootApiKey, sendVisionContext]);
 
@@ -166,7 +173,9 @@ export function useOvershootVision({
   }, [enabled, room, initializeOvershoot]);
 
   return {
-    isInitialized,
+    isInitialized: status === "active",
+    status,
+    error,
     currentContext,
   };
 }
