@@ -10,7 +10,7 @@ import {
 import { useCurrentExercise } from "@/lib/stores/workoutStore";
 import { useRepCounterStore } from "@/lib/stores/repCounterStore";
 import { getDetectorForExercise } from "@/lib/form/detectors";
-import { extractJointAngles, JointAngles } from "@/lib/poseUtils";
+import { extractJointAngles, type ThresholdData as PoseThresholdData } from "@/lib/poseUtils";
 import type { FormDetector } from "@/lib/form/FormDetector";
 
 const LANDMARK_INDICES = {
@@ -92,12 +92,19 @@ export default function WorkoutCamera({ isActive = true }: WorkoutCameraProps) {
 
   useEffect(() => {
     const exerciseId = currentExercise?.exercises.id;
+    const exerciseName = currentExercise?.exercises.name;
+    const thresholdData = currentExercise?.exercises
+      .threshold_data as PoseThresholdData | null | undefined;
     if (!exerciseId) {
       detectorRef.current = null;
       return;
     }
 
-    const detector = getDetectorForExercise(exerciseId);
+    const detector = getDetectorForExercise(
+      exerciseId,
+      exerciseName,
+      thresholdData ?? undefined,
+    );
     if (detector) {
       detector.setCallbacks({
         onAttemptStarted: incrementAttempted,
