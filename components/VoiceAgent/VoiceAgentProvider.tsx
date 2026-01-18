@@ -2,6 +2,7 @@
 
 import { LiveKitRoom, RoomAudioRenderer, useRoomContext } from "@livekit/components-react";
 import "@livekit/components-styles";
+import { DataPacket_Kind } from "livekit-client";
 import { ReactNode, useState, useCallback, useEffect, useRef } from "react";
 import { useWorkoutStore } from "@/lib/stores/workoutStore";
 import type { ExerciseContextMessage, ExerciseSwitchMessage } from "@/types/agentMessages";
