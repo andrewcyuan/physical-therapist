@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import {
   PoseLandmarker,
+  FaceLandmarker,
   FilesetResolver,
   DrawingUtils,
 } from "@mediapipe/tasks-vision";
@@ -15,6 +16,7 @@ export default function WorkoutCamera({ isActive = true }: WorkoutCameraProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const poseLandmarkerRef = useRef<PoseLandmarker | null>(null);
+  const faceLandmarkerRef = useRef<FaceLandmarker | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
@@ -65,12 +67,24 @@ export default function WorkoutCamera({ isActive = true }: WorkoutCameraProps) {
           numPoses: 1,
         });
 
+        const faceLandmarker = await FaceLandmarker.createFromOptions(vision, {
+          baseOptions: {
+            modelAssetPath:
+              "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
+            delegate: "GPU",
+          },
+          runningMode: "VIDEO",
+          numFaces: 1,
+        });
+
         if (!isMounted) {
           poseLandmarker.close();
+          faceLandmarker.close();
           return;
         }
 
         poseLandmarkerRef.current = poseLandmarker;
+        faceLandmarkerRef.current = faceLandmarker;
 
         // Get webcam access - request higher resolution for fullscreen
         const stream = await navigator.mediaDevices.getUserMedia({
@@ -120,32 +134,44 @@ export default function WorkoutCamera({ isActive = true }: WorkoutCameraProps) {
           canvas.width = video.videoWidth;
           canvas.height = video.videoHeight;
 
-          // Detect pose
-          const results = poseLandmarkerRef.current.detectForVideo(
+          const poseResults = poseLandmarkerRef.current.detectForVideo(
             video,
             performance.now()
           );
 
+          const faceResults = faceLandmarkerRef.current
+            ? faceLandmarkerRef.current.detectForVideo(video, performance.now())
+            : null;
+
           // Clear canvas
           ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-          // Draw landmarks
-          if (results.landmarks && results.landmarks.length > 0) {
+          if (poseResults.landmarks && poseResults.landmarks.length > 0) {
             const drawingUtils = new DrawingUtils(ctx);
 
-            for (const landmarks of results.landmarks) {
-              // Draw connectors (skeleton lines)
+            for (const landmarks of poseResults.landmarks) {
               drawingUtils.drawConnectors(
                 landmarks,
                 PoseLandmarker.POSE_CONNECTIONS,
                 { color: "#22c55e", lineWidth: 3 }
               );
 
-              // Draw landmarks (joint dots)
               drawingUtils.drawLandmarks(landmarks, {
                 color: "#ffffff",
                 lineWidth: 1,
                 radius: 5,
+              });
+            }
+          }
+
+          if (faceResults && faceResults.faceLandmarks && faceResults.faceLandmarks.length > 0) {
+            const drawingUtils = new DrawingUtils(ctx);
+
+            for (const faceLandmarks of faceResults.faceLandmarks) {
+              drawingUtils.drawLandmarks(faceLandmarks, {
+                color: "#38bdf8",
+                lineWidth: 1,
+                radius: 2,
               });
             }
           }
@@ -173,6 +199,10 @@ export default function WorkoutCamera({ isActive = true }: WorkoutCameraProps) {
       if (poseLandmarkerRef.current) {
         poseLandmarkerRef.current.close();
         poseLandmarkerRef.current = null;
+      }
+      if (faceLandmarkerRef.current) {
+        faceLandmarkerRef.current.close();
+        faceLandmarkerRef.current = null;
       }
     };
   }, [isActive, stopTracking]);
