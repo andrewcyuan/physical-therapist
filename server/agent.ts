@@ -146,16 +146,6 @@ export default defineAgent({
         console.error("Failed to parse data message:", err);
       }
     });
-
-    setTimeout(() => {
-      if (!hasGreeted) {
-        hasGreeted = true;
-        session.generateReply({
-          instructions:
-            "Greet the user warmly and let them know you're here to help with their physical therapy exercises. Ask how you can assist them today.",
-        });
-      }
-    }, 1500);
   },
 });
 

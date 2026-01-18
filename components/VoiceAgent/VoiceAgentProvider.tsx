@@ -77,15 +77,7 @@ function ExerciseSwitchSender() {
   const prevSetIndex = useRef<number | null>(null);
 
   useEffect(() => {
-    if (!room || !workout) return;
-
-    if (room.state !== "connected") {
-      console.warn(
-        "[ExerciseSwitchSender] Room not connected, skipping switch publish. State:",
-        room.state,
-      );
-      return;
-    }
+    if (!workout) return;
 
     const exerciseSet = workout.exercises[currentExerciseIndex];
     if (!exerciseSet) return;
@@ -101,6 +93,14 @@ function ExerciseSwitchSender() {
     if (isInitialRender) return;
 
     if (!exerciseChanged && !setChanged) return;
+
+    if (!room || room.state !== "connected") {
+      console.warn(
+        "[ExerciseSwitchSender] Room not connected, skipping switch publish. State:",
+        room?.state,
+      );
+      return;
+    }
 
     const message: ExerciseSwitchMessage = {
       type: "exercise_switch",
@@ -123,7 +123,7 @@ function ExerciseSwitchSender() {
         err,
       );
     }
-  }, [room, room?.state, workout, currentExerciseIndex, currentSetIndex]);
+  }, [room, workout, currentExerciseIndex, currentSetIndex]);
 
   return null;
 }
