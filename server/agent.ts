@@ -36,11 +36,7 @@ if (!process.env.ELEVEN_API_KEY && process.env.ELEVENLABS_API_KEY) {
 
 export default defineAgent({
   prewarm: async (proc: JobProcess) => {
-    proc.userData.vad = await silero.VAD.load({
-      minSpeechDuration: 0.5,
-      minSilenceDuration: 0.5,
-      activationThreshold: 0.7,
-    });
+    proc.userData.vad = await silero.VAD.load();
   },
   entry: async (ctx: JobContext) => {
     const vad = ctx.proc.userData.vad! as silero.VAD;
@@ -131,7 +127,7 @@ export default defineAgent({
             "Greet the user warmly and let them know you're here to help with their physical therapy exercises. Ask how you can assist them today.",
         });
       }
-    }, 3000);
+    }, 1500);
   },
 });
 

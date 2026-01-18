@@ -3,11 +3,14 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import {
   PoseLandmarker,
-  FaceLandmarker,
-  HandLandmarker,
   FilesetResolver,
   DrawingUtils,
 } from "@mediapipe/tasks-vision";
+import { useCurrentExercise } from "@/lib/stores/workoutStore";
+import { useRepCounterStore } from "@/lib/stores/repCounterStore";
+import { getDetectorForExercise } from "@/lib/form/detectors";
+import { extractJointAngles } from "@/lib/poseUtils";
+import type { FormDetector } from "@/lib/form/FormDetector";
 
 interface WorkoutCameraProps {
   isActive?: boolean;
@@ -17,13 +20,18 @@ export default function WorkoutCamera({ isActive = true }: WorkoutCameraProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const poseLandmarkerRef = useRef<PoseLandmarker | null>(null);
-  const faceLandmarkerRef = useRef<FaceLandmarker | null>(null);
-  const handLandmarkerRef = useRef<HandLandmarker | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const detectorRef = useRef<FormDetector | null>(null);
 
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const currentExercise = useCurrentExercise();
+  const incrementAttempted = useRepCounterStore((state) => state.incrementAttempted);
+  const incrementCompleted = useRepCounterStore((state) => state.incrementCompleted);
+  const setPhase = useRepCounterStore((state) => state.setPhase);
+  const resetRepCounter = useRepCounterStore((state) => state.reset);
 
   const stopTracking = useCallback(() => {
     if (animationFrameRef.current) {
@@ -38,6 +46,25 @@ export default function WorkoutCamera({ isActive = true }: WorkoutCameraProps) {
       videoRef.current.srcObject = null;
     }
   }, []);
+
+  useEffect(() => {
+    const exerciseId = currentExercise?.exercises.id;
+    if (!exerciseId) {
+      detectorRef.current = null;
+      return;
+    }
+
+    const detector = getDetectorForExercise(exerciseId);
+    if (detector) {
+      detector.setCallbacks({
+        onAttemptStarted: incrementAttempted,
+        onRepCompleted: incrementCompleted,
+        onPhaseChange: setPhase,
+      });
+    }
+    detectorRef.current = detector;
+    resetRepCounter();
+  }, [currentExercise, incrementAttempted, incrementCompleted, setPhase, resetRepCounter]);
 
   useEffect(() => {
     if (!isActive) {
@@ -69,42 +96,12 @@ export default function WorkoutCamera({ isActive = true }: WorkoutCameraProps) {
           numPoses: 1,
         });
 
-        const faceLandmarker = await FaceLandmarker.createFromOptions(
-          vision,
-          {
-            baseOptions: {
-              modelAssetPath:
-                "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
-              delegate: "GPU",
-            },
-            runningMode: "VIDEO",
-            numFaces: 1,
-          },
-        );
-
-        const handLandmarker = await HandLandmarker.createFromOptions(
-          vision,
-          {
-            baseOptions: {
-              modelAssetPath:
-                "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
-              delegate: "GPU",
-            },
-            runningMode: "VIDEO",
-            numHands: 2,
-          },
-        );
-
         if (!isMounted) {
           poseLandmarker.close();
-          faceLandmarker.close();
-          handLandmarker.close();
           return;
         }
 
         poseLandmarkerRef.current = poseLandmarker;
-        faceLandmarkerRef.current = faceLandmarker;
-        handLandmarkerRef.current = handLandmarker;
 
         // Get webcam access - request higher resolution for fullscreen
         const stream = await navigator.mediaDevices.getUserMedia({
@@ -159,17 +156,10 @@ export default function WorkoutCamera({ isActive = true }: WorkoutCameraProps) {
             performance.now()
           );
 
-          const faceResults = faceLandmarkerRef.current
-            ? faceLandmarkerRef.current.detectForVideo(video, performance.now())
-            : null;
-
-          const handResults = handLandmarkerRef.current
-            ? handLandmarkerRef.current.detectForVideo(video, performance.now())
-            : null;
-
           // Clear canvas
           ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+          // Draw landmarks and process for rep detection
           if (poseResults.landmarks && poseResults.landmarks.length > 0) {
             const drawingUtils = new DrawingUtils(ctx);
 
@@ -185,44 +175,15 @@ export default function WorkoutCamera({ isActive = true }: WorkoutCameraProps) {
                 lineWidth: 1,
                 radius: 5,
               });
-            }
-          }
 
-          if (
-            faceResults &&
-            faceResults.faceLandmarks &&
-            faceResults.faceLandmarks.length > 0
-          ) {
-            const drawingUtils = new DrawingUtils(ctx);
-
-            for (const faceLandmarks of faceResults.faceLandmarks) {
-              drawingUtils.drawLandmarks(faceLandmarks, {
-                color: "#38bdf8",
-                lineWidth: 1,
-                radius: 2,
-              });
-            }
-          }
-
-          if (
-            handResults &&
-            handResults.landmarks &&
-            handResults.landmarks.length > 0
-          ) {
-            const drawingUtils = new DrawingUtils(ctx);
-
-            for (const landmarks of handResults.landmarks) {
-              drawingUtils.drawConnectors(
-                landmarks,
-                HandLandmarker.HAND_CONNECTIONS,
-                { color: "#f97316", lineWidth: 3 },
-              );
-
-              drawingUtils.drawLandmarks(landmarks, {
-                color: "#fed7aa",
-                lineWidth: 1,
-                radius: 4,
-              });
+              // Process through form detector if available
+              if (detectorRef.current) {
+                const angles = extractJointAngles(landmarks);
+                detectorRef.current.processFrame({
+                  timestamp: performance.now(),
+                  angles,
+                });
+              }
             }
           }
 
@@ -249,14 +210,6 @@ export default function WorkoutCamera({ isActive = true }: WorkoutCameraProps) {
       if (poseLandmarkerRef.current) {
         poseLandmarkerRef.current.close();
         poseLandmarkerRef.current = null;
-      }
-      if (faceLandmarkerRef.current) {
-        faceLandmarkerRef.current.close();
-        faceLandmarkerRef.current = null;
-      }
-      if (handLandmarkerRef.current) {
-        handLandmarkerRef.current.close();
-        handLandmarkerRef.current = null;
       }
     };
   }, [isActive, stopTracking]);

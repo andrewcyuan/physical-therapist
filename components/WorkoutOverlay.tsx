@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { ArrowLeft, ChevronLeft, ChevronRight } from "lucide-react";
 import { useWorkoutStore, useCurrentExercise, useWorkoutProgress } from "@/lib/stores/workoutStore";
+import { useRepCounterStore } from "@/lib/stores/repCounterStore";
+import { RepPhase } from "@/lib/form/FormDetector";
 import { VoiceAgentButton } from "./VoiceAgent";
 import ProgressBar from "./ProgressBar";
 
@@ -13,8 +15,25 @@ export default function WorkoutOverlay() {
   const prev = useWorkoutStore((state) => state.prev);
   const currentExerciseSet = useCurrentExercise();
   const { canGoNext, canGoPrev } = useWorkoutProgress();
+  const attemptedReps = useRepCounterStore((state) => state.attemptedReps);
+  const completedReps = useRepCounterStore((state) => state.completedReps);
+  const currentPhase = useRepCounterStore((state) => state.currentPhase);
 
   if (!workout || !currentExerciseSet) return null;
+
+  const getPhaseDisplay = (phase: RepPhase) => {
+    const phaseConfig: Record<RepPhase, { label: string; color: string }> = {
+      [RepPhase.WaitingForStart]: { label: "Get Ready", color: "text-zinc-400" },
+      [RepPhase.Start]: { label: "Start", color: "text-blue-400" },
+      [RepPhase.Eccentric]: { label: "Lowering", color: "text-amber-400" },
+      [RepPhase.Turnaround]: { label: "Hold", color: "text-purple-400" },
+      [RepPhase.Concentric]: { label: "Lifting", color: "text-cyan-400" },
+      [RepPhase.End]: { label: "Complete", color: "text-green-400" },
+    };
+    return phaseConfig[phase];
+  };
+
+  const phaseDisplay = getPhaseDisplay(currentPhase);
 
   const exercise = currentExerciseSet.exercises;
 
@@ -63,16 +82,34 @@ export default function WorkoutOverlay() {
       <div className="pointer-events-auto bg-gradient-to-t from-black/80 via-black/50 to-transparent px-4 pb-8 pt-20">
         <div className="mx-auto max-w-4xl">
           {/* Exercise Info - Left aligned above progress bar */}
-          <div className="mb-4">
-            <h2 className="text-base font-semibold text-white drop-shadow-lg">
-              {exercise.name}
-            </h2>
-            <p className="mt-0.5 text-xs text-white/80">
-              Set {currentSetIndex + 1} of {currentExerciseSet.num_sets} • {currentExerciseSet.num_reps} reps
-            </p>
-            <p className="mt-1 text-xs text-white/60 line-clamp-2">
-              {exercise.orientation_instructions}
-            </p>
+          <div className="mb-4 flex items-start justify-between">
+            <div>
+              <h2 className="text-base font-semibold text-white drop-shadow-lg">
+                {exercise.name}
+              </h2>
+              <p className="mt-0.5 text-xs text-white/80">
+                Set {currentSetIndex + 1} of {currentExerciseSet.num_sets} • {currentExerciseSet.num_reps} reps
+              </p>
+              <p className="mt-1 text-xs text-white/60 line-clamp-2">
+                {exercise.orientation_instructions}
+              </p>
+            </div>
+            <div className="flex items-end gap-4 text-right">
+              <div>
+                <p className={`text-sm font-semibold ${phaseDisplay.color}`}>
+                  {phaseDisplay.label}
+                </p>
+                <p className="text-xs text-white/60">Phase</p>
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-white">{attemptedReps}</p>
+                <p className="text-xs text-white/60">Attempted</p>
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-green-400">{completedReps}</p>
+                <p className="text-xs text-white/60">Completed</p>
+              </div>
+            </div>
           </div>
 
           {/* Navigation + Progress Bar */}
