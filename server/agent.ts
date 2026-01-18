@@ -9,6 +9,7 @@ import {
 import * as livekit from "@livekit/agents-plugin-livekit";
 import * as elevenlabs from "@livekit/agents-plugin-elevenlabs";
 import * as silero from "@livekit/agents-plugin-silero";
+import * as openai from "@livekit/agents-plugin-openai";
 import { BackgroundVoiceCancellation } from "@livekit/noise-cancellation-node";
 import { DataPacketKind } from "@livekit/rtc-node";
 import { fileURLToPath } from "node:url";
@@ -51,8 +52,14 @@ export default defineAgent({
 
     const session = new voice.AgentSession({
       vad,
-      stt: "elevenlabs/scribe_v2_realtime:en",
-      llm: "openai/gpt-4.1-mini",
+      stt: new openai.STT({
+        model: "whisper-1",
+        language: "en",
+        detectLanguage: false,
+      }),
+      llm: new openai.LLM({
+        model: "gpt-4o-mini",
+      }),
       tts: new elevenlabs.TTS({
         voiceId: elevenVoiceId,
         model: elevenModel,
