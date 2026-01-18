@@ -26,8 +26,14 @@ export type VisionContextMessage = {
   context: string;
 };
 
+export type OrientationAlertMessage = {
+  type: "orientation_alert";
+  context: string;
+}
+
 export type AgentMessage =
   | ExerciseContextMessage
   | FormAlertMessage
   | ExerciseSwitchMessage
-  | VisionContextMessage;
+  | VisionContextMessage
+  | OrientationAlertMessage;

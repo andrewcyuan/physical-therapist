@@ -1,82 +1,174 @@
-import { FormDetector } from "../FormDetector";
+import type { NormalizedLandmark } from "@mediapipe/tasks-vision";
+import { FormDetector, Position } from "../FormDetector";
 
-export class PushupDetector extends FormDetector {
-    constructor() {
-        super({
-            name: 'pushup',
+const LANDMARKS = {
+  LEFT_SHOULDER: 11,
+  RIGHT_SHOULDER: 12,
+  LEFT_ELBOW: 13,
+  RIGHT_ELBOW: 14,
+  LEFT_WRIST: 15,
+  RIGHT_WRIST: 16,
+  LEFT_HIP: 23,
+  RIGHT_HIP: 24,
+  LEFT_KNEE: 25,
+  RIGHT_KNEE: 26,
+};
 
-            // Start position: plank - elbows extended, body straight
-            startPosition: (angles) => {
-                const avgElbow = (angles.leftElbow + angles.rightElbow) / 2;
-                const avgShoulder = (angles.leftShoulder + angles.rightShoulder) / 2;
-                return avgElbow > 150 && avgShoulder < 85; // Arms straight, shoulders engaged
-            },
+function calculateAngle(
+  pointA: NormalizedLandmark,
+  pointB: NormalizedLandmark,
+  pointC: NormalizedLandmark
+): number {
+  const radians = Math.atan2(pointC.y - pointB.y, pointC.x - pointB.x) -
+                  Math.atan2(pointA.y - pointB.y, pointA.x - pointB.x);
+  let angle = Math.abs(radians * 180.0 / Math.PI);
 
-            // Eccentric starts: elbows begin to bend
-            eccentricStarted: (current, previous) => {
-                const currentElbow = (current.leftElbow + current.rightElbow) / 2;
-                const previousElbow = (previous.leftElbow + previous.rightElbow) / 2;
-                return currentElbow < previousElbow - 3; // Decreasing by significant amount
-            },
+  if (angle > 180.0) {
+    angle = 360 - angle;
+  }
 
-            // Turnaround: bottom of pushup
-            turnaroundReached: (angles) => {
-                const avgElbow = (angles.leftElbow + angles.rightElbow) / 2;
-                return avgElbow < 90; // Elbows bent to ~90 degrees or less
-            },
+  return angle;
+}
 
-            // Concentric starts: elbows begin to extend
-            concentricStarted: (current, previous) => {
-                const currentElbow = (current.leftElbow + current.rightElbow) / 2;
-                const previousElbow = (previous.leftElbow + previous.rightElbow) / 2;
-                return currentElbow > previousElbow + 3; // Increasing
-            },
+function averageAngle(angle1: number, angle2: number): number {
+  return (angle1 + angle2) / 2;
+}
 
-            // End position: back to plank
-            endPosition: (angles) => {
-                const avgElbow = (angles.leftElbow + angles.rightElbow) / 2;
-                return avgElbow > 160;
-            },
+function interpolate(value: number, inMin: number, inMax: number, outMin: number, outMax: number): number {
+  return ((value - inMin) * (outMax - outMin)) / (inMax - inMin) + outMin;
+}
 
-            minRepDuration: 500,    // 0.5 seconds minimum
-            maxRepDuration: 5000,   // 5 seconds maximum
-            restThreshold: 1000,    // 1 second in plank to start set
-            setEndThreshold: 3000,  // 3 seconds idle to end set
+export class PushupDetector implements FormDetector {
+  private formValidated = false;
+  private lastPosition: Position = "UP";
 
-            analyzeForm: (rep) => {
-                const feedback: string[] = [];
+  detectPosition(landmarks: NormalizedLandmark[]): Position {
+    const leftElbowAngle = calculateAngle(
+      landmarks[LANDMARKS.LEFT_SHOULDER],
+      landmarks[LANDMARKS.LEFT_ELBOW],
+      landmarks[LANDMARKS.LEFT_WRIST]
+    );
 
-                // Check for proper depth
-                const minElbow = Math.min(
-                    ...rep.frames.map(f => (f.angles.leftElbow + f.angles.rightElbow) / 2)
-                );
+    const rightElbowAngle = calculateAngle(
+      landmarks[LANDMARKS.RIGHT_SHOULDER],
+      landmarks[LANDMARKS.RIGHT_ELBOW],
+      landmarks[LANDMARKS.RIGHT_WRIST]
+    );
 
-                if (minElbow > 100) {
-                    feedback.push("Go deeper - aim for 90° elbow bend at the bottom");
-                }
+    const elbowAngle = averageAngle(leftElbowAngle, rightElbowAngle);
 
-                // Check symmetry
-                const leftElbowRange = rep.frames.map(f => f.angles.leftElbow);
-                const rightElbowRange = rep.frames.map(f => f.angles.rightElbow);
-                const avgDiff = leftElbowRange.reduce((sum, left, i) =>
-                    sum + Math.abs(left - rightElbowRange[i]), 0) / rep.frames.length;
+    const leftShoulderAngle = calculateAngle(
+      landmarks[LANDMARKS.LEFT_ELBOW],
+      landmarks[LANDMARKS.LEFT_SHOULDER],
+      landmarks[LANDMARKS.LEFT_HIP]
+    );
 
-                if (avgDiff > 15) {
-                    feedback.push("Keep your body balanced - one side is dipping more than the other");
-                }
+    const rightShoulderAngle = calculateAngle(
+      landmarks[LANDMARKS.RIGHT_ELBOW],
+      landmarks[LANDMARKS.RIGHT_SHOULDER],
+      landmarks[LANDMARKS.RIGHT_HIP]
+    );
 
-                // Check body alignment (hips shouldn't sag or pike)
-                const hipAngles = rep.frames.map(f => (f.angles.leftHip + f.angles.rightHip) / 2);
-                const avgHip = hipAngles.reduce((a, b) => a + b, 0) / hipAngles.length;
+    const shoulderAngle = averageAngle(leftShoulderAngle, rightShoulderAngle);
 
-                if (avgHip < 160) {
-                    feedback.push("Keep your core tight - your hips are sagging");
-                } else if (avgHip > 175) {
-                    feedback.push("Don't pike your hips - maintain a straight line from head to heels");
-                }
+    const leftHipAngle = calculateAngle(
+      landmarks[LANDMARKS.LEFT_SHOULDER],
+      landmarks[LANDMARKS.LEFT_HIP],
+      landmarks[LANDMARKS.LEFT_KNEE]
+    );
 
-                return feedback;
-            },
-        });
+    const rightHipAngle = calculateAngle(
+      landmarks[LANDMARKS.RIGHT_SHOULDER],
+      landmarks[LANDMARKS.RIGHT_HIP],
+      landmarks[LANDMARKS.RIGHT_KNEE]
+    );
+
+    const hipAngle = averageAngle(leftHipAngle, rightHipAngle);
+
+    if (!this.formValidated) {
+      if (elbowAngle > 160 && shoulderAngle > 40 && hipAngle > 160) {
+        this.formValidated = true;
+      }
     }
+
+    const percentage = interpolate(elbowAngle, 90, 160, 0, 100);
+
+    if (percentage <= 20) {
+      this.lastPosition = "DOWN";
+      return "DOWN";
+    }
+
+    if (percentage >= 80) {
+      this.lastPosition = "UP";
+      return "UP";
+    }
+
+    return this.lastPosition;
+  }
+
+  checkForm(landmarks: NormalizedLandmark[]): string | null {
+    if (!this.formValidated) {
+      return "Get into starting position: Arms straight, body aligned";
+    }
+
+    const leftElbowAngle = calculateAngle(
+      landmarks[LANDMARKS.LEFT_SHOULDER],
+      landmarks[LANDMARKS.LEFT_ELBOW],
+      landmarks[LANDMARKS.LEFT_WRIST]
+    );
+
+    const rightElbowAngle = calculateAngle(
+      landmarks[LANDMARKS.RIGHT_SHOULDER],
+      landmarks[LANDMARKS.RIGHT_ELBOW],
+      landmarks[LANDMARKS.RIGHT_WRIST]
+    );
+
+    const elbowAngle = averageAngle(leftElbowAngle, rightElbowAngle);
+
+    const leftShoulderAngle = calculateAngle(
+      landmarks[LANDMARKS.LEFT_ELBOW],
+      landmarks[LANDMARKS.LEFT_SHOULDER],
+      landmarks[LANDMARKS.LEFT_HIP]
+    );
+
+    const rightShoulderAngle = calculateAngle(
+      landmarks[LANDMARKS.RIGHT_ELBOW],
+      landmarks[LANDMARKS.RIGHT_SHOULDER],
+      landmarks[LANDMARKS.RIGHT_HIP]
+    );
+
+    const shoulderAngle = averageAngle(leftShoulderAngle, rightShoulderAngle);
+
+    const leftHipAngle = calculateAngle(
+      landmarks[LANDMARKS.LEFT_SHOULDER],
+      landmarks[LANDMARKS.LEFT_HIP],
+      landmarks[LANDMARKS.LEFT_KNEE]
+    );
+
+    const rightHipAngle = calculateAngle(
+      landmarks[LANDMARKS.RIGHT_SHOULDER],
+      landmarks[LANDMARKS.RIGHT_HIP],
+      landmarks[LANDMARKS.RIGHT_KNEE]
+    );
+
+    const hipAngle = averageAngle(leftHipAngle, rightHipAngle);
+
+    const percentage = interpolate(elbowAngle, 90, 160, 0, 100);
+
+    if (percentage <= 20) {
+      if (elbowAngle <= 100 && hipAngle > 160) {
+        return null;
+      }
+      return "Fix Form";
+    }
+
+    if (percentage >= 80) {
+      if (elbowAngle > 150 && shoulderAngle > 40 && hipAngle > 160) {
+        return null;
+      }
+      return "Fix Form";
+    }
+
+    return null;
+  }
 }

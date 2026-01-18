@@ -1,113 +1,49 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
-import { RealtimeVision } from "@overshoot/sdk";
-import { RepCheckInstructions, VisionRepPhase } from "@/types/repCheckInstructions";
-import { parsePhaseFromResponse, buildRepCountingPrompt } from "@/lib/vision/visionRepCounter";
-import { useRepCounterStore } from "@/lib/stores/repCounterStore";
-import { RepPhase } from "@/lib/form/FormDetector";
+import { useEffect, useRef, useState } from "react";
+import { useMaybeRoomContext } from "@livekit/components-react";
+import { buildOrientationCheckPrompt, parseOrientationResponse } from "@/lib/vision/visionRepCounter";
 import { captureCanvasFrame, cleanupTempCanvas } from "@/lib/vision/canvasFrameCapture";
 import { VISION_CONFIG } from "@/lib/vision/config";
 import { OvershootStatus } from "./useOvershootVision";
+import type { OrientationAlertMessage } from "@/types/agentMessages";
+
+const ALERT_COOLDOWN_MS = 15000;
 
 interface UseGptVisionFallbackOptions {
   enabled?: boolean;
-  repCheckInstructions?: RepCheckInstructions | null;
+  orientationInstructions: string | null;
   canvasRef: HTMLCanvasElement | null;
 }
 
 export function useGptVisionFallback({
   enabled = true,
-  repCheckInstructions,
+  orientationInstructions,
   canvasRef,
 }: UseGptVisionFallbackOptions) {
   const [status, setStatus] = useState<OvershootStatus>("idle");
   const [error, setError] = useState<string | null>(null);
   const [currentContext, setCurrentContext] = useState<string>("");
-  const previousPhaseRef = useRef<VisionRepPhase>("unknown");
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const lastAlertTimeRef = useRef<number>(0);
+  const roomRef = useRef<ReturnType<typeof useMaybeRoomContext>>(null);
+  const orientationInstructionsRef = useRef<string | null>(null);
+  const canvasRefRef = useRef<HTMLCanvasElement | null>(null);
 
-  const incrementAttempted = useRepCounterStore((state) => state.incrementAttempted);
-  const incrementCompleted = useRepCounterStore((state) => state.incrementCompleted);
-  const setPhase = useRepCounterStore((state) => state.setPhase);
+  const room = useMaybeRoomContext();
 
-  const handleRepCounting = useCallback(
-    (detectedPhase: VisionRepPhase) => {
-      const prevPhase = previousPhaseRef.current;
-
-      if (prevPhase === "start" && detectedPhase === "end") {
-        incrementAttempted();
-        setPhase(RepPhase.Turnaround);
-      }
-
-      if (prevPhase === "end" && detectedPhase === "start") {
-        incrementCompleted();
-        setPhase(RepPhase.End);
-      }
-
-      if (detectedPhase === "midway") {
-        setPhase(RepPhase.Eccentric);
-      }
-
-      if (detectedPhase !== "unknown") {
-        previousPhaseRef.current = detectedPhase;
-      }
-    },
-    [incrementAttempted, incrementCompleted, setPhase]
-  );
-
-  const performInference = useCallback(async () => {
-    if (!canvasRef || !repCheckInstructions) {
-      return;
-    }
-
-    try {
-      const imageData = await captureCanvasFrame(
-        canvasRef,
-        VISION_CONFIG.imageSize,
-        VISION_CONFIG.imageQuality
-      );
-
-      if (!imageData) {
-        console.warn("[GPT Vision] Failed to capture frame from canvas");
-        return;
-      }
-
-      const prompt = buildRepCountingPrompt(repCheckInstructions);
-
-      const response = await fetch("/api/vision/infer", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ imageData, prompt }),
-        signal: AbortSignal.timeout(VISION_CONFIG.requestTimeout),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        console.error("[GPT Vision] API error:", response.status, errorData);
-        return;
-      }
-
-      const data = await response.json();
-      const position = data.position;
-
-      setCurrentContext(position);
-
-      const detectedPhase = parsePhaseFromResponse(position);
-      handleRepCounting(detectedPhase);
-    } catch (err) {
-      if (err instanceof Error && err.name === "AbortError") {
-        console.error("[GPT Vision] Request timeout");
-      } else {
-        console.error("[GPT Vision] Inference error:", err);
-      }
-    }
-  }, [canvasRef, repCheckInstructions, handleRepCounting]);
+  roomRef.current = room;
+  orientationInstructionsRef.current = orientationInstructions;
+  canvasRefRef.current = canvasRef;
 
   useEffect(() => {
-    if (!enabled || !canvasRef || !repCheckInstructions) {
+    console.log("[GPT Vision] Effect triggered");
+    console.log("[GPT Vision] enabled:", enabled);
+    console.log("[GPT Vision] canvasRef:", !!canvasRef);
+    console.log("[GPT Vision] orientationInstructions:", !!orientationInstructions);
+
+    if (!enabled || !canvasRef || !orientationInstructions) {
+      console.log("[GPT Vision] Conditions not met, not starting loop");
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
         intervalRef.current = null;
@@ -116,28 +52,114 @@ export function useGptVisionFallback({
       return;
     }
 
-    console.log("[GPT Vision] Starting inference loop");
+    const performInference = async () => {
+      const currentCanvas = canvasRefRef.current;
+      const currentInstructions = orientationInstructionsRef.current;
+      const currentRoom = roomRef.current;
+
+      console.log("[GPT Vision] ========== INFERENCE START ==========");
+
+      if (!currentCanvas || !currentInstructions) {
+        console.warn("[GPT Vision] Missing canvasRef or orientationInstructions, skipping");
+        return;
+      }
+
+      try {
+        const imageData = await captureCanvasFrame(
+          currentCanvas,
+          VISION_CONFIG.imageSize,
+          VISION_CONFIG.imageQuality
+        );
+
+        if (!imageData) {
+          console.warn("[GPT Vision] Failed to capture frame from canvas");
+          return;
+        }
+
+        console.log("[GPT Vision] Frame captured, length:", imageData.length);
+
+        const prompt = buildOrientationCheckPrompt(currentInstructions);
+
+        const response = await fetch("/api/vision/infer", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ imageData, prompt }),
+          signal: AbortSignal.timeout(VISION_CONFIG.requestTimeout),
+        });
+
+        console.log("[GPT Vision] API response status:", response.status);
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          console.error("[GPT Vision] API error:", response.status, errorData);
+          return;
+        }
+
+        const data = await response.json();
+        const answer = data.position;
+        console.log("[GPT Vision] Answer:", answer);
+
+        setCurrentContext(answer);
+
+        const isFollowingOrientation = parseOrientationResponse(answer);
+        console.log("[GPT Vision] isFollowingOrientation:", isFollowingOrientation);
+
+        if (!isFollowingOrientation) {
+          const now = Date.now();
+          const timeSinceLastAlert = now - lastAlertTimeRef.current;
+          console.log("[GPT Vision] Time since last alert:", timeSinceLastAlert, "ms");
+
+          if (timeSinceLastAlert < ALERT_COOLDOWN_MS) {
+            console.log("[GPT Vision] Skipping alert due to cooldown");
+            return;
+          }
+
+          if (!currentRoom || currentRoom.state !== "connected") {
+            console.warn("[GPT Vision] Room not connected, skipping alert");
+            return;
+          }
+
+          lastAlertTimeRef.current = now;
+
+          const message: OrientationAlertMessage = {
+            type: "orientation_alert",
+            context: currentInstructions,
+          };
+
+          const encoder = new TextEncoder();
+          const payload = encoder.encode(JSON.stringify(message));
+          currentRoom.localParticipant.publishData(payload, { reliable: true });
+          console.log("[GPT Vision] ✅ Orientation alert sent!");
+        }
+
+        console.log("[GPT Vision] ========== INFERENCE END ==========");
+      } catch (err) {
+        if (err instanceof Error && err.name === "AbortError") {
+          console.warn("[GPT Vision] Request timeout - frame skipped");
+        } else {
+          console.error("[GPT Vision] Inference error:", err);
+        }
+      }
+    };
+
+    console.log("[GPT Vision] ✅ Starting orientation check loop");
+    console.log("[GPT Vision] Inference interval:", VISION_CONFIG.inferenceInterval, "ms");
     setStatus("active");
     setError(null);
 
     performInference();
 
-    intervalRef.current = setInterval(() => {
-      performInference();
-    }, VISION_CONFIG.inferenceInterval);
+    intervalRef.current = setInterval(performInference, VISION_CONFIG.inferenceInterval);
 
     return () => {
+      console.log("[GPT Vision] Cleaning up interval");
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
         intervalRef.current = null;
       }
       cleanupTempCanvas();
     };
-  }, [enabled, canvasRef, repCheckInstructions, performInference]);
-
-  useEffect(() => {
-    previousPhaseRef.current = "unknown";
-  }, [repCheckInstructions]);
+  }, [enabled, canvasRef, orientationInstructions]);
 
   return {
     isInitialized: status === "active",

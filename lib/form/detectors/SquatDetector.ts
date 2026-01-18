@@ -1,66 +1,137 @@
-import { FormDetector } from "../FormDetector";
+import type { NormalizedLandmark } from "@mediapipe/tasks-vision";
+import { FormDetector, Position } from "../FormDetector";
 
-export class SquatDetector extends FormDetector {
-    constructor() {
-        super({
-            name: 'squat',
+const LANDMARKS = {
+  LEFT_SHOULDER: 11,
+  RIGHT_SHOULDER: 12,
+  LEFT_HIP: 23,
+  RIGHT_HIP: 24,
+  LEFT_KNEE: 25,
+  RIGHT_KNEE: 26,
+  LEFT_ANKLE: 27,
+  RIGHT_ANKLE: 28,
+};
 
-            startPosition: (angles) => {
-                const avgKnee = (angles.leftKnee + angles.rightKnee) / 2;
-                const avgHip = (angles.leftHip + angles.rightHip) / 2;
-                return avgKnee > 160 && avgHip > 160; // Standing upright
-            },
+function calculateAngle(
+  pointA: NormalizedLandmark,
+  pointB: NormalizedLandmark,
+  pointC: NormalizedLandmark
+): number {
+  const vectorBA = {
+    x: pointA.x - pointB.x,
+    y: pointA.y - pointB.y,
+    z: pointA.z - pointB.z,
+  };
 
-            eccentricStarted: (current, previous) => {
-                const currentKnee = (current.leftKnee + current.rightKnee) / 2;
-                const previousKnee = (previous.leftKnee + previous.rightKnee) / 2;
-                return currentKnee < previousKnee - 5;
-            },
+  const vectorBC = {
+    x: pointC.x - pointB.x,
+    y: pointC.y - pointB.y,
+    z: pointC.z - pointB.z,
+  };
 
-            turnaroundReached: (angles) => {
-                const avgKnee = (angles.leftKnee + angles.rightKnee) / 2;
-                return avgKnee < 90;
-            },
+  const dotProduct =
+    vectorBA.x * vectorBC.x + vectorBA.y * vectorBC.y + vectorBA.z * vectorBC.z;
 
-            concentricStarted: (current, previous) => {
-                const currentKnee = (current.leftKnee + current.rightKnee) / 2;
-                const previousKnee = (previous.leftKnee + previous.rightKnee) / 2;
-                return currentKnee > previousKnee + 5;
-            },
+  const magnitudeBA = Math.sqrt(
+    vectorBA.x ** 2 + vectorBA.y ** 2 + vectorBA.z ** 2
+  );
+  const magnitudeBC = Math.sqrt(
+    vectorBC.x ** 2 + vectorBC.y ** 2 + vectorBC.z ** 2
+  );
 
-            endPosition: (angles) => {
-                const avgKnee = (angles.leftKnee + angles.rightKnee) / 2;
-                return avgKnee > 160;
-            },
+  if (magnitudeBA === 0 || magnitudeBC === 0) {
+    return 0;
+  }
 
-            minRepDuration: 800,
-            maxRepDuration: 6000,
-            restThreshold: 1500,
-            setEndThreshold: 4000,
+  const cosAngle = dotProduct / (magnitudeBA * magnitudeBC);
+  const clampedCos = Math.max(-1, Math.min(1, cosAngle));
+  const angleRadians = Math.acos(clampedCos);
+  const angleDegrees = (angleRadians * 180) / Math.PI;
 
-            analyzeForm: (rep) => {
-                const feedback: string[] = [];
+  return Math.round(angleDegrees * 10) / 10;
+}
 
-                // Check depth
-                const minKnee = Math.min(
-                    ...rep.frames.map(f => (f.angles.leftKnee + f.angles.rightKnee) / 2)
-                );
+function averageAngle(angle1: number, angle2: number): number {
+  return (angle1 + angle2) / 2;
+}
 
-                if (minKnee > 100) {
-                    feedback.push("Squat deeper - aim for thighs parallel to ground");
-                }
+export class SquatDetector implements FormDetector {
+  private lastPosition: Position = "UP";
 
-                // Check knee-hip ratio (too much knee travel)
-                const kneeRange = Math.max(...rep.frames.map(f => f.angles.leftKnee)) - minKnee;
-                const hipRange = Math.max(...rep.frames.map(f => f.angles.leftHip)) -
-                    Math.min(...rep.frames.map(f => f.angles.leftHip));
+  detectPosition(landmarks: NormalizedLandmark[]): Position {
+    const leftKneeAngle = calculateAngle(
+      landmarks[LANDMARKS.LEFT_HIP],
+      landmarks[LANDMARKS.LEFT_KNEE],
+      landmarks[LANDMARKS.LEFT_ANKLE]
+    );
 
-                if (kneeRange / hipRange > 1.3) {
-                    feedback.push("Push your hips back more - you're relying too much on your knees");
-                }
+    const rightKneeAngle = calculateAngle(
+      landmarks[LANDMARKS.RIGHT_HIP],
+      landmarks[LANDMARKS.RIGHT_KNEE],
+      landmarks[LANDMARKS.RIGHT_ANKLE]
+    );
 
-                return feedback;
-            },
-        });
+    const kneeAngle = averageAngle(leftKneeAngle, rightKneeAngle);
+
+    if (kneeAngle <= 100) {
+      this.lastPosition = "DOWN";
+      return "DOWN";
     }
+
+    if (kneeAngle >= 150) {
+      this.lastPosition = "UP";
+      return "UP";
+    }
+
+    return this.lastPosition;
+  }
+
+  checkForm(landmarks: NormalizedLandmark[]): string | null {
+    const leftKneeAngle = calculateAngle(
+      landmarks[LANDMARKS.LEFT_HIP],
+      landmarks[LANDMARKS.LEFT_KNEE],
+      landmarks[LANDMARKS.LEFT_ANKLE]
+    );
+
+    const rightKneeAngle = calculateAngle(
+      landmarks[LANDMARKS.RIGHT_HIP],
+      landmarks[LANDMARKS.RIGHT_KNEE],
+      landmarks[LANDMARKS.RIGHT_ANKLE]
+    );
+
+    const kneeAngle = averageAngle(leftKneeAngle, rightKneeAngle);
+
+    const leftHipAngle = calculateAngle(
+      landmarks[LANDMARKS.LEFT_SHOULDER],
+      landmarks[LANDMARKS.LEFT_HIP],
+      landmarks[LANDMARKS.LEFT_KNEE]
+    );
+
+    const rightHipAngle = calculateAngle(
+      landmarks[LANDMARKS.RIGHT_SHOULDER],
+      landmarks[LANDMARKS.RIGHT_HIP],
+      landmarks[LANDMARKS.RIGHT_KNEE]
+    );
+
+    const hipAngle = averageAngle(leftHipAngle, rightHipAngle);
+
+    const leftKneeY = landmarks[LANDMARKS.LEFT_KNEE].y;
+    const leftAnkleY = landmarks[LANDMARKS.LEFT_ANKLE].y;
+    const rightKneeY = landmarks[LANDMARKS.RIGHT_KNEE].y;
+    const rightAnkleY = landmarks[LANDMARKS.RIGHT_ANKLE].y;
+
+    if (kneeAngle < 100 && hipAngle > 100) {
+      return "Sit back more - push your hips back as you squat";
+    }
+
+    if (leftKneeY < leftAnkleY || rightKneeY < rightAnkleY) {
+      return "Don't let your knees go past your toes";
+    }
+
+    if (kneeAngle > 100 && kneeAngle < 140) {
+      return "Go lower - aim for thighs parallel to the ground";
+    }
+
+    return null;
+  }
 }

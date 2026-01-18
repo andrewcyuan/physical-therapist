@@ -3,6 +3,7 @@ import type {
   ExerciseSwitchMessage,
   FormAlertMessage,
   VisionContextMessage,
+  OrientationAlertMessage,
 } from "../types/agentMessages";
 
 export const PT_INSTRUCTIONS = `You are a friendly and knowledgeable physical therapy assistant. Your role is to help users with their physical therapy exercises and answer questions about their workout routines.
@@ -52,3 +53,6 @@ export const buildExerciseSwitchSayMessage = (message: ExerciseSwitchMessage) =>
 
 export const buildVisionContextSystemMessage = (message: VisionContextMessage) =>
   `Current form observation: ${message.context}`;
+
+export const buildOrientationAlertSayMessage = (message: OrientationAlertMessage) =>
+  `I noticed you might need to adjust your position. ${message.context}`;

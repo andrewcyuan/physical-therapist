@@ -1,24 +1,28 @@
 import { create } from "zustand";
-import { RepPhase } from "@/lib/form/FormDetector";
+import { Position } from "@/lib/form/FormDetector";
 
 interface RepCounterState {
-  attemptedReps: number;
-  completedReps: number;
-  currentPhase: RepPhase;
+  repCount: number;
+  direction: 0 | 1;
+  currentPosition: Position | null;
+  feedback: string;
 
-  incrementAttempted: () => void;
-  incrementCompleted: () => void;
-  setPhase: (phase: RepPhase) => void;
+  incrementHalfRep: () => void;
+  setDirection: (direction: 0 | 1) => void;
+  setPosition: (position: Position | null) => void;
+  setFeedback: (feedback: string) => void;
   reset: () => void;
 }
 
 export const useRepCounterStore = create<RepCounterState>((set) => ({
-  attemptedReps: 0,
-  completedReps: 0,
-  currentPhase: RepPhase.WaitingForStart,
+  repCount: 0,
+  direction: 0,
+  currentPosition: null,
+  feedback: "",
 
-  incrementAttempted: () => set((state) => ({ attemptedReps: state.attemptedReps + 1 })),
-  incrementCompleted: () => set((state) => ({ completedReps: state.completedReps + 1 })),
-  setPhase: (phase) => set({ currentPhase: phase }),
-  reset: () => set({ attemptedReps: 0, completedReps: 0, currentPhase: RepPhase.WaitingForStart }),
+  incrementHalfRep: () => set((state) => ({ repCount: state.repCount + 0.5 })),
+  setDirection: (direction) => set({ direction }),
+  setPosition: (position) => set({ currentPosition: position }),
+  setFeedback: (feedback) => set({ feedback }),
+  reset: () => set({ repCount: 0, direction: 0, currentPosition: null, feedback: "" }),
 }));

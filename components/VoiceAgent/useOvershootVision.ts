@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState } from "react";
 import { RealtimeVision } from "@overshoot/sdk";
 import { RepCheckInstructions, VisionRepPhase } from "@/types/repCheckInstructions";
 import { parsePhaseFromResponse, buildRepCountingPrompt } from "@/lib/vision/visionRepCounter";
 import { useRepCounterStore } from "@/lib/stores/repCounterStore";
-import { RepPhase } from "@/lib/form/FormDetector";
 import { useVisionSystemStore } from "@/lib/vision/visionSystemStore";
+
+const OVERSHOOT_INIT_TIMEOUT_MS = 10000;
 
 interface UseOvershootVisionOptions {
   enabled?: boolean;
@@ -24,110 +25,24 @@ export function useOvershootVision({
   const [error, setError] = useState<string | null>(null);
   const [currentContext, setCurrentContext] = useState<string>("");
   const previousPhaseRef = useRef<VisionRepPhase>("unknown");
+  const initStartedRef = useRef(false);
 
-  const incrementAttempted = useRepCounterStore((state) => state.incrementAttempted);
-  const incrementCompleted = useRepCounterStore((state) => state.incrementCompleted);
-  const setPhase = useRepCounterStore((state) => state.setPhase);
+  const repCounterStoreRef = useRef(useRepCounterStore.getState());
+  const visionSystemStoreRef = useRef(useVisionSystemStore.getState());
 
-  const incrementFailureCount = useVisionSystemStore((state) => state.incrementFailureCount);
-  const recordSuccess = useVisionSystemStore((state) => state.recordSuccess);
+  useEffect(() => {
+    return useRepCounterStore.subscribe((state) => {
+      repCounterStoreRef.current = state;
+    });
+  }, []);
+
+  useEffect(() => {
+    return useVisionSystemStore.subscribe((state) => {
+      visionSystemStoreRef.current = state;
+    });
+  }, []);
 
   const overshootApiKey = process.env.NEXT_PUBLIC_OVERSHOOT_API_KEY;
-
-  const handleRepCounting = useCallback(
-    (detectedPhase: VisionRepPhase) => {
-      const prevPhase = previousPhaseRef.current;
-
-      if (prevPhase === "start" && detectedPhase === "end") {
-        incrementAttempted();
-        setPhase(RepPhase.Turnaround);
-      }
-
-      if (prevPhase === "end" && detectedPhase === "start") {
-        incrementCompleted();
-        setPhase(RepPhase.End);
-      }
-
-      if (detectedPhase === "midway") {
-        setPhase(RepPhase.Eccentric);
-      }
-
-      if (detectedPhase !== "unknown") {
-        previousPhaseRef.current = detectedPhase;
-      }
-    },
-    [incrementAttempted, incrementCompleted, setPhase]
-  );
-
-  const initializeOvershoot = useCallback(async () => {
-    if (visionRef.current) {
-      return;
-    }
-
-    if (!overshootApiKey) {
-      const msg = "No Overshoot API key configured (NEXT_PUBLIC_OVERSHOOT_API_KEY). Vision will not start.";
-      console.warn("[OvershootVision] " + msg);
-      setError(msg);
-      setStatus("error");
-      return;
-    }
-
-    const prompt = buildRepCountingPrompt(repCheckInstructions);
-
-    try {
-      setStatus("loading");
-      console.log("[OvershootVision] Initializing with prompt:", prompt.substring(0, 100));
-
-      const vision = new RealtimeVision({
-        apiUrl: "https://cluster1.overshoot.ai/api/v0.2",
-        apiKey: overshootApiKey,
-        model: "Qwen/Qwen3-VL-30B-A3B-Instruct",
-        prompt,
-        source: { type: "camera", cameraFacing: "user" },
-        processing: {
-          clip_length_seconds: 0.75,
-          delay_seconds: 1,
-          fps: 30,
-          sampling_ratio: 0.1,
-        },
-        onResult: (result) => {
-          try {
-            const context = result.result;
-            setCurrentContext(context);
-
-            if (!result.ok) {
-              console.error("[Overshoot] Inference error:", result.error);
-              incrementFailureCount();
-              return;
-            }
-
-            const detectedPhase = parsePhaseFromResponse(context);
-
-            if (detectedPhase === "unknown") {
-              incrementFailureCount();
-            } else {
-              recordSuccess();
-            }
-
-            handleRepCounting(detectedPhase);
-          } catch (err) {
-            console.error("[Overshoot] Processing error:", err);
-            incrementFailureCount();
-          }
-        },
-      });
-
-      visionRef.current = vision;
-
-      await vision.start();
-      setStatus("active");
-    } catch (err) {
-      console.error("[OvershootVision] Init failed:", err);
-      setStatus("error");
-      setError(err instanceof Error ? err.message : "Unknown error initializing vision");
-      incrementFailureCount();
-    }
-  }, [overshootApiKey, repCheckInstructions, handleRepCounting, incrementFailureCount, recordSuccess]);
 
   useEffect(() => {
     if (!enabled) {
@@ -135,21 +50,137 @@ export function useOvershootVision({
         visionRef.current.stop().catch(console.error);
         visionRef.current = null;
       }
+      initStartedRef.current = false;
+      setStatus("idle");
       return;
     }
 
-    const timeoutId = setTimeout(() => {
-      void initializeOvershoot();
-    }, 0);
+    if (initStartedRef.current || visionRef.current) {
+      return;
+    }
+
+    if (!overshootApiKey) {
+      const msg = "No Overshoot API key configured";
+      console.warn("[OvershootVision] " + msg);
+      setError(msg);
+      setStatus("error");
+      return;
+    }
+
+    initStartedRef.current = true;
+    setStatus("loading");
+
+    const prompt = buildRepCountingPrompt(repCheckInstructions);
+    console.log("[OvershootVision] Initializing with prompt:", prompt.substring(0, 100));
+
+    let timeoutId: NodeJS.Timeout | null = null;
+    let isTimedOut = false;
+
+    const initVision = async () => {
+      try {
+        const vision = new RealtimeVision({
+          apiUrl: "https://cluster1.overshoot.ai/api/v0.2",
+          apiKey: overshootApiKey,
+          model: "Qwen/Qwen3-VL-30B-A3B-Instruct",
+          prompt,
+          source: { type: "camera", cameraFacing: "user" },
+          processing: {
+            clip_length_seconds: 0.75,
+            delay_seconds: 1,
+            fps: 30,
+            sampling_ratio: 0.1,
+          },
+          onResult: (result) => {
+            try {
+              const context = result.result;
+              setCurrentContext(context);
+
+              if (!result.ok) {
+                console.error("[Overshoot] Inference error:", result.error);
+                visionSystemStoreRef.current.incrementFailureCount();
+                return;
+              }
+
+              const detectedPhase = parsePhaseFromResponse(context);
+
+              if (detectedPhase === "unknown") {
+                visionSystemStoreRef.current.incrementFailureCount();
+              } else {
+                visionSystemStoreRef.current.recordSuccess();
+              }
+
+              const prevPhase = previousPhaseRef.current;
+              const store = repCounterStoreRef.current;
+
+              if (detectedPhase === "preparation") {
+                store.setFeedback("");
+              } else if (prevPhase === "start" && detectedPhase === "end") {
+                if (store.direction === 1) {
+                  store.incrementHalfRep();
+                  store.setDirection(0);
+                  store.setFeedback("Down");
+                }
+              } else if (prevPhase === "end" && detectedPhase === "start") {
+                if (store.direction === 0) {
+                  store.incrementHalfRep();
+                  store.setDirection(1);
+                  store.setFeedback("Up");
+                }
+              }
+
+              if (detectedPhase === "start" || detectedPhase === "end") {
+                previousPhaseRef.current = detectedPhase;
+              }
+            } catch (err) {
+              console.error("[Overshoot] Processing error:", err);
+              visionSystemStoreRef.current.incrementFailureCount();
+            }
+          },
+        });
+
+        visionRef.current = vision;
+
+        timeoutId = setTimeout(() => {
+          isTimedOut = true;
+          console.error("[OvershootVision] start() timed out after", OVERSHOOT_INIT_TIMEOUT_MS, "ms");
+          setStatus("error");
+          setError("Overshoot initialization timed out");
+          visionSystemStoreRef.current.incrementFailureCount();
+          if (visionRef.current) {
+            visionRef.current.stop().catch(console.error);
+            visionRef.current = null;
+          }
+        }, OVERSHOOT_INIT_TIMEOUT_MS);
+
+        await vision.start();
+
+        if (timeoutId) clearTimeout(timeoutId);
+
+        if (!isTimedOut) {
+          console.log("[OvershootVision] Started successfully");
+          setStatus("active");
+        }
+      } catch (err) {
+        if (timeoutId) clearTimeout(timeoutId);
+        if (!isTimedOut) {
+          console.error("[OvershootVision] Init failed:", err);
+          setStatus("error");
+          setError(err instanceof Error ? err.message : "Unknown error initializing vision");
+          visionSystemStoreRef.current.incrementFailureCount();
+        }
+      }
+    };
+
+    initVision();
 
     return () => {
-      clearTimeout(timeoutId);
+      if (timeoutId) clearTimeout(timeoutId);
       if (visionRef.current) {
         visionRef.current.stop().catch(console.error);
         visionRef.current = null;
       }
     };
-  }, [enabled, initializeOvershoot]);
+  }, [enabled, overshootApiKey, repCheckInstructions]);
 
   useEffect(() => {
     previousPhaseRef.current = "unknown";

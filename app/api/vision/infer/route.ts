@@ -1,10 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
+import { VISION_CONFIG } from "@/lib/vision/config";
 
 export async function POST(request: NextRequest) {
+  console.log("[Vision API] ========== REQUEST START ==========");
+
   try {
     const { imageData, prompt } = await request.json();
 
+    console.log("[Vision API] Received request");
+    console.log("[Vision API] Prompt:", prompt?.substring(0, 200) + "...");
+    console.log("[Vision API] Image data length:", imageData?.length || 0);
+
     if (!imageData || !prompt) {
+      console.error("[Vision API] Missing imageData or prompt");
       return NextResponse.json(
         { error: "Missing imageData or prompt" },
         { status: 400 }
@@ -21,9 +29,11 @@ export async function POST(request: NextRequest) {
     }
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
 
     try {
+      console.log("[Vision API] Calling OpenAI API...");
+
       const response = await fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
         headers: {
@@ -31,7 +41,7 @@ export async function POST(request: NextRequest) {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "gpt-5-nano",
+          model: VISION_CONFIG.modelVersion,
           messages: [
             {
               role: "user",
@@ -47,32 +57,32 @@ export async function POST(request: NextRequest) {
           response_format: {
             type: "json_schema",
             json_schema: {
-              name: "exercise_position",
+              name: "orientation_check",
               strict: true,
               schema: {
                 type: "object",
                 properties: {
-                  position: {
+                  answer: {
                     type: "string",
-                    enum: ["START", "END", "MIDWAY"],
+                    enum: ["YES", "NO"],
                   },
                 },
-                required: ["position"],
+                required: ["answer"],
                 additionalProperties: false,
               },
             },
           },
-          max_tokens: 10,
-          temperature: 0,
         }),
         signal: controller.signal,
       });
 
       clearTimeout(timeoutId);
 
+      console.log("[Vision API] OpenAI response status:", response.status);
+
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        console.error("[Vision API] OpenAI error:", response.status, errorData);
+        console.error("[Vision API] OpenAI error:", response.status, JSON.stringify(errorData));
 
         return NextResponse.json(
           {
@@ -84,16 +94,62 @@ export async function POST(request: NextRequest) {
       }
 
       const data = await response.json();
-      const position = JSON.parse(data.choices[0].message.content).position;
 
-      return NextResponse.json({ position });
+      console.log("[Vision API] OpenAI response:", JSON.stringify(data, null, 2));
+
+      if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+        console.error("[Vision API] Invalid response structure:", data);
+        return NextResponse.json(
+          { error: "Invalid response from OpenAI" },
+          { status: 500 }
+        );
+      }
+
+      const content = data.choices[0].message.content;
+      console.log("[Vision API] Message content:", content);
+
+      let answer: string;
+
+      if (typeof content === "string") {
+        try {
+          const parsed = JSON.parse(content);
+          answer = parsed.answer;
+        } catch (parseError) {
+          console.error("[Vision API] Failed to parse content as JSON:", content);
+          return NextResponse.json(
+            { error: "Failed to parse response", details: { content } },
+            { status: 500 }
+          );
+        }
+      } else if (typeof content === "object" && content !== null) {
+        answer = content.answer;
+      } else {
+        console.error("[Vision API] Unexpected content type:", typeof content);
+        return NextResponse.json(
+          { error: "Unexpected response format" },
+          { status: 500 }
+        );
+      }
+
+      console.log("[Vision API] Parsed answer:", answer);
+
+      if (!answer || !["YES", "NO"].includes(answer)) {
+        console.error("[Vision API] Invalid answer value:", answer);
+        return NextResponse.json(
+          { error: "Invalid answer value", details: { answer } },
+          { status: 500 }
+        );
+      }
+
+      console.log("[Vision API] ========== REQUEST SUCCESS ==========");
+      return NextResponse.json({ position: answer });
     } catch (fetchError) {
       clearTimeout(timeoutId);
 
       if (fetchError instanceof Error && fetchError.name === "AbortError") {
-        console.error("[Vision API] Request timeout");
+        console.error("[Vision API] Request timeout after 8 seconds");
         return NextResponse.json(
-          { error: "Request timeout after 5 seconds" },
+          { error: "Request timeout after 8 seconds" },
           { status: 504 }
         );
       }

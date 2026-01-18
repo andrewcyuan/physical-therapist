@@ -11,7 +11,9 @@ import { useCurrentExercise } from "@/lib/stores/workoutStore";
 import { useRepCounterStore } from "@/lib/stores/repCounterStore";
 import { getDetectorForExercise } from "@/lib/form/detectors";
 import { extractJointAngles, type ThresholdData as PoseThresholdData } from "@/lib/poseUtils";
-import type { FormDetector } from "@/lib/form/FormDetector";
+import type { FormDetector, Position } from "@/lib/form/FormDetector";
+import { toast } from "sonner";
+import { useFormAlertSender } from "@/hooks/useFormAlertSender";
 
 const LANDMARK_INDICES = {
   LEFT_SHOULDER: 11,
@@ -55,6 +57,16 @@ function drawAngleLabel(
   ctx.restore();
 }
 
+function checkLandmarksVisible(landmarks: NormalizedLandmark[], requiredIndices: number[], minVisibility = 0.5): boolean {
+  for (const index of requiredIndices) {
+    const landmark = landmarks[index];
+    if (!landmark || landmark.visibility === undefined || landmark.visibility < minVisibility) {
+      return false;
+    }
+  }
+  return true;
+}
+
 interface WorkoutCameraProps {
   isActive?: boolean;
   enableRepCounting?: boolean;
@@ -68,15 +80,27 @@ export default function WorkoutCamera({ isActive = true, enableRepCounting = tru
   const animationFrameRef = useRef<number | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const detectorRef = useRef<FormDetector | null>(null);
+  const previousPositionRef = useRef<"UP" | "DOWN" | null>(null);
+  const lastRepTimeRef = useRef<number>(0);
 
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [debugInfo, setDebugInfo] = useState<{
+    elbow: number;
+    shoulder: number;
+    hip: number;
+    percentage: number;
+    position: Position | null;
+    formFeedback: string | null;
+  } | null>(null);
 
   const currentExercise = useCurrentExercise();
-  const incrementAttempted = useRepCounterStore((state) => state.incrementAttempted);
-  const incrementCompleted = useRepCounterStore((state) => state.incrementCompleted);
-  const setPhase = useRepCounterStore((state) => state.setPhase);
+  const incrementHalfRep = useRepCounterStore((state) => state.incrementHalfRep);
+  const setDirection = useRepCounterStore((state) => state.setDirection);
+  const direction = useRepCounterStore((state) => state.direction);
+  const setFeedback = useRepCounterStore((state) => state.setFeedback);
   const resetRepCounter = useRepCounterStore((state) => state.reset);
+  const { sendFormAlert } = useFormAlertSender();
 
   const stopTracking = useCallback(() => {
     if (animationFrameRef.current) {
@@ -118,16 +142,11 @@ export default function WorkoutCamera({ isActive = true, enableRepCounting = tru
       exerciseName,
       thresholdData ?? undefined,
     );
-    if (detector) {
-      detector.setCallbacks({
-        onAttemptStarted: incrementAttempted,
-        onRepCompleted: incrementCompleted,
-        onPhaseChange: setPhase,
-      });
-    }
     detectorRef.current = detector;
+    previousPositionRef.current = null;
+    lastRepTimeRef.current = 0;
     resetRepCounter();
-  }, [currentExercise, enableRepCounting, incrementAttempted, incrementCompleted, setPhase, resetRepCounter]);
+  }, [currentExercise, enableRepCounting, resetRepCounter]);
 
   useEffect(() => {
     if (!isActive) {
@@ -257,11 +276,94 @@ export default function WorkoutCamera({ isActive = true, enableRepCounting = tru
               drawAngleLabel(ctx, landmarks[L.RIGHT_WRIST], angles.rightWrist, "R Wrist", canvas.width, canvas.height);
 
               // Process through form detector if available
-              if (detectorRef.current) {
-                detectorRef.current.processFrame({
-                  timestamp: performance.now(),
-                  angles,
+              if (detectorRef.current && enableRepCounting) {
+                const keyLandmarks = [11, 12, 13, 14, 15, 16, 23, 24, 25, 26];
+                const landmarksVisible = checkLandmarksVisible(landmarks, keyLandmarks, 0.6);
+
+                if (!landmarksVisible) {
+                  setDebugInfo(null);
+                  setFeedback("Move into camera view");
+                  return;
+                }
+
+                const currentPosition = detectorRef.current.detectPosition(landmarks);
+                const formFeedback = detectorRef.current.checkForm(landmarks);
+
+                const calculateAngle = (a: NormalizedLandmark, b: NormalizedLandmark, c: NormalizedLandmark) => {
+                  const radians = Math.atan2(c.y - b.y, c.x - b.x) - Math.atan2(a.y - b.y, a.x - b.x);
+                  let angle = Math.abs(radians * 180.0 / Math.PI);
+                  if (angle > 180.0) angle = 360 - angle;
+                  return Math.round(angle);
+                };
+
+                const elbow = Math.round((
+                  calculateAngle(landmarks[11], landmarks[13], landmarks[15]) +
+                  calculateAngle(landmarks[12], landmarks[14], landmarks[16])
+                ) / 2);
+
+                const shoulder = Math.round((
+                  calculateAngle(landmarks[13], landmarks[11], landmarks[23]) +
+                  calculateAngle(landmarks[14], landmarks[12], landmarks[24])
+                ) / 2);
+
+                const hip = Math.round((
+                  calculateAngle(landmarks[11], landmarks[23], landmarks[25]) +
+                  calculateAngle(landmarks[12], landmarks[24], landmarks[26])
+                ) / 2);
+
+                const percentage = Math.round(((elbow - 90) * 100) / (160 - 90));
+
+                setDebugInfo({
+                  elbow,
+                  shoulder,
+                  hip,
+                  percentage: Math.max(0, Math.min(100, percentage)),
+                  position: currentPosition,
+                  formFeedback,
                 });
+
+                if (previousPositionRef.current === null) {
+                  previousPositionRef.current = currentPosition;
+                  toast.info(`Starting position: ${currentPosition}`);
+                  sendFormAlert(`User in starting position: ${currentPosition}`, "info");
+                } else if (previousPositionRef.current !== currentPosition) {
+                  const now = Date.now();
+                  const minTimeBetweenReps = 300;
+                  const timeSinceLastRep = now - lastRepTimeRef.current;
+
+                  if (timeSinceLastRep < minTimeBetweenReps) {
+                    return;
+                  }
+
+                  if (currentPosition === "DOWN" && direction === 0) {
+                    if (!formFeedback) {
+                      incrementHalfRep();
+                      setDirection(1);
+                      setFeedback("Up");
+                      toast.success("Phase: DOWN → Push back up!");
+                      sendFormAlert("Good form - completed down phase", "info");
+                      lastRepTimeRef.current = now;
+                    } else {
+                      setFeedback("Fix Form");
+                      toast.error("Fix your form before counting");
+                      sendFormAlert(formFeedback, "warning");
+                    }
+                  } else if (currentPosition === "UP" && direction === 1) {
+                    if (!formFeedback) {
+                      incrementHalfRep();
+                      setDirection(0);
+                      setFeedback("Down");
+                      toast.success("Phase: UP → Go down!");
+                      sendFormAlert("Good form - completed up phase", "info");
+                      lastRepTimeRef.current = now;
+                    } else {
+                      setFeedback("Fix Form");
+                      toast.error("Fix your form before counting");
+                      sendFormAlert(formFeedback, "warning");
+                    }
+                  }
+                  previousPositionRef.current = currentPosition;
+                }
               }
             }
           }
@@ -336,6 +438,41 @@ export default function WorkoutCamera({ isActive = true, enableRepCounting = tru
         className="pointer-events-none absolute inset-0 h-full w-full object-cover"
         style={{ transform: "scaleX(-1)" }}
       />
+
+      {/* Debug Info Overlay */}
+      {debugInfo && enableRepCounting && (
+        <div className="pointer-events-none absolute inset-0 p-4">
+          {/* Feedback Banner */}
+          <div className="absolute right-4 top-4 rounded-lg bg-white px-6 py-3 text-center shadow-lg">
+            <p className="text-2xl font-bold text-green-600">
+              {debugInfo.formFeedback || "Good Form"}
+            </p>
+          </div>
+
+          {/* Progress Bar */}
+          <div className="absolute right-4 top-20 flex h-80 w-6 flex-col-reverse overflow-hidden rounded-full border-4 border-green-500 bg-zinc-800">
+            <div
+              className="w-full bg-green-500 transition-all duration-100"
+              style={{ height: `${debugInfo.percentage}%` }}
+            />
+          </div>
+          <div className="absolute right-2 top-[420px] text-center">
+            <p className="text-2xl font-bold text-white drop-shadow-lg">
+              {debugInfo.percentage}%
+            </p>
+          </div>
+
+          {/* Angle Info */}
+          <div className="absolute bottom-4 left-4 space-y-2 rounded-lg bg-black/70 p-4 text-white">
+            <div className="text-sm">
+              <div>Elbow: {debugInfo.elbow}°</div>
+              <div>Shoulder: {debugInfo.shoulder}°</div>
+              <div>Hip: {debugInfo.hip}°</div>
+              <div>Position: {debugInfo.position}</div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

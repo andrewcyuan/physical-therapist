@@ -4,4 +4,4 @@ export interface RepCheckInstructions {
   exerciseContext: string;
 }
 
-export type VisionRepPhase = "start" | "end" | "midway" | "unknown";
+export type VisionRepPhase = "start" | "end" | "midway" | "preparation" | "unknown";

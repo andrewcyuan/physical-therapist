@@ -19,6 +19,7 @@ import type {
   ExerciseSwitchMessage,
   FormAlertMessage,
   VisionContextMessage,
+  OrientationAlertMessage,
 } from "../types/agentMessages";
 import {
   PT_INSTRUCTIONS,
@@ -27,9 +28,10 @@ import {
   buildFormAlertSayMessage,
   buildGreetingPrompt,
   buildVisionContextSystemMessage,
+  buildOrientationAlertSayMessage,
 } from "./prompts";
 
-type AgentMessage = ExerciseContextMessage | FormAlertMessage | ExerciseSwitchMessage | VisionContextMessage;
+type AgentMessage = ExerciseContextMessage | FormAlertMessage | ExerciseSwitchMessage | VisionContextMessage | OrientationAlertMessage;
 
 // Load env from root .env.local
 dotenv.config({ path: ".env.local" });
@@ -141,6 +143,10 @@ export default defineAgent({
           });
           visionContextMessageId = contextMessage.id;
           await assistant.updateChatCtx(chatCtx);
+        }
+
+        if (message.type === "orientation_alert") {
+          session.say(buildOrientationAlertSayMessage(message));
         }
       } catch (err) {
         console.error("Failed to parse data message:", err);

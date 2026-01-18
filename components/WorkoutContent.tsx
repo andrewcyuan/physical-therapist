@@ -17,7 +17,7 @@ interface WorkoutContentProps {
   workout: Workout;
 }
 
-function VisionRepCounter({ repCheckInstructions, canvasRef }: { repCheckInstructions: RepCheckInstructions, canvasRef: HTMLCanvasElement | null }) {
+function VisionRepCounter({ repCheckInstructions, orientationInstructions, canvasRef }: { repCheckInstructions: RepCheckInstructions, orientationInstructions: string | null, canvasRef: HTMLCanvasElement | null }) {
   const activeProvider = useVisionSystemStore((state) => state.activeProvider);
   const failureCount = useVisionSystemStore((state) => state.overshootConsecutiveFailures);
   const setActiveProvider = useVisionSystemStore((state) => state.setActiveProvider);
@@ -28,8 +28,8 @@ function VisionRepCounter({ repCheckInstructions, canvasRef }: { repCheckInstruc
   });
 
   const gptFallback = useGptVisionFallback({
-    enabled: activeProvider === "gpt",
-    repCheckInstructions,
+    enabled: true,
+    orientationInstructions,
     canvasRef,
   });
 
@@ -74,12 +74,14 @@ export default function WorkoutContent({ workout }: WorkoutContentProps) {
   const reset = useWorkoutStore((state) => state.reset);
   const resetVisionSystem = useVisionSystemStore((state) => state.reset);
   const currentExercise = useCurrentExercise();
-  const completedReps = useRepCounterStore((state) => state.completedReps);
+  const repCount = useRepCounterStore((state) => state.repCount);
   const resetRepCounter = useRepCounterStore((state) => state.reset);
   const repCheckInstructions = currentExercise?.exercises.rep_check_instructions;
+  const orientationInstructions = currentExercise?.exercises.orientation_instructions ?? null;
   const [canvasRef, setCanvasRef] = useState<HTMLCanvasElement | null>(null);
 
   const targetReps = currentExercise?.num_reps ?? 0;
+  const completedReps = Math.floor(repCount);
 
   useEffect(() => {
     if (completedReps > 0 && completedReps >= targetReps) {
@@ -108,9 +110,9 @@ export default function WorkoutContent({ workout }: WorkoutContentProps) {
   return (
     <VoiceAgentProvider autoConnect>
       <div className="fixed inset-0 overflow-hidden">
-        <WorkoutCamera isActive={true} enableRepCounting={false} onCanvasReady={setCanvasRef} />
+        <WorkoutCamera isActive={true} enableRepCounting={true} onCanvasReady={setCanvasRef} />
         <WorkoutOverlay />
-        {repCheckInstructions && <VisionRepCounter repCheckInstructions={repCheckInstructions} canvasRef={canvasRef} />}
+        {repCheckInstructions && <VisionRepCounter repCheckInstructions={repCheckInstructions} orientationInstructions={orientationInstructions} canvasRef={canvasRef} />}
       </div>
     </VoiceAgentProvider>
   );
