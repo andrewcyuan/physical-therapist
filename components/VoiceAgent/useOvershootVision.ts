@@ -43,8 +43,8 @@ export function useOvershootVision({
           "Analyze this image of a person doing a physical therapy exercise. Describe their body position, form, alignment, and any specific details about their posture or movements. Be specific about joint angles, spinal alignment, limb positions, and any potential form issues. Focus on exercise technique and provide actionable feedback. Keep the response concise (2-3 sentences).",
         source: { type: "camera", cameraFacing: "user" },
         processing: {
-          clip_length_seconds: 1,
-          delay_seconds: 2,
+          clip_length_seconds: 0.75,
+          delay_seconds: 1,
           fps: 30,
           sampling_ratio: 0.1,
         },

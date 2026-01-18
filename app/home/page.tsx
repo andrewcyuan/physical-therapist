@@ -48,13 +48,19 @@ export default async function HomePage() {
               <div className="flex items-center justify-between gap-4">
                 <div>
                   <h2 className="text-sm font-semibold text-slate-900">
-                    Your workouts
+                    Saved plans
                   </h2>
                   <p className="mt-1 text-xs text-slate-500">
                     {workouts?.length
                       ? `${workouts.length} saved program${workouts.length > 1 ? "s" : ""}`
                       : "No workouts yet"}
                   </p>
+                </div>
+                <div className="flex gap-3 items-center">
+                  <h2 className="text-sm font-semibold text-slate-900">
+                    Or build your own:
+                  </h2>
+                  <BuildWorkoutButton />
                 </div>
               </div>
 
@@ -74,13 +80,12 @@ export default async function HomePage() {
                     </div>
                     <div className="flex items-center gap-3">
                       <span
-                        className={`inline-flex items-center rounded-full px-3 py-1 text-[11px] font-medium capitalize ${
-                          workout.difficulty === "easy"
-                            ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200"
-                            : workout.difficulty === "medium"
-                              ? "bg-amber-50 text-amber-700 ring-1 ring-amber-200"
-                              : "bg-rose-50 text-rose-700 ring-1 ring-rose-200"
-                        }`}
+                        className={`inline-flex items-center rounded-full px-3 py-1 text-[11px] font-medium capitalize ${workout.difficulty === "easy"
+                          ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200"
+                          : workout.difficulty === "medium"
+                            ? "bg-amber-50 text-amber-700 ring-1 ring-amber-200"
+                            : "bg-rose-50 text-rose-700 ring-1 ring-rose-200"
+                          }`}
                       >
                         {workout.difficulty}
                       </span>
@@ -98,65 +103,15 @@ export default async function HomePage() {
                 )}
               </div>
             </div>
-
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="rounded-2xl border border-slate-200 bg-white p-4 text-xs text-slate-600">
-                <p className="font-semibold text-slate-900">Track what matters</p>
-                <p className="mt-1">
-                  Each workout keeps its sets, reps, and difficulty so you can progress
-                  with intent instead of guesswork.
-                </p>
-              </div>
-              <div className="rounded-2xl border border-slate-200 bg-white p-4 text-xs text-slate-600">
-                <p className="font-semibold text-slate-900">Built on your motions</p>
-                <p className="mt-1">
-                  Exercises come from your own recordings, so rep counting is tuned to
-                  how you actually move.
-                </p>
-              </div>
-            </div>
           </section>
 
           <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div>
-              <h2 className="text-sm font-semibold text-slate-900">
-                Create something new
-              </h2>
-              <p className="mt-1 text-xs text-slate-500">
-                Build workouts from your own exercises. Each one carries its own rep
-                logic and camera template.
-              </p>
-            </div>
-
-            <div className="space-y-3">
-              <div className="flex items-center justify-between rounded-xl bg-slate-50 px-4 py-3">
-                <div>
-                  <p className="text-sm font-medium text-slate-900">Build workout</p>
-                  <p className="mt-1 text-xs text-slate-500">
-                    Combine multiple exercises into a repeatable session.
-                  </p>
-                </div>
-                <BuildWorkoutButton />
-              </div>
-
-              <div className="flex items-center justify-between rounded-xl bg-slate-50 px-4 py-3">
-                <div>
-                  <p className="text-sm font-medium text-slate-900">New exercise</p>
-                  <p className="mt-1 text-xs text-slate-500">
-                    Record a single movement and let the system learn its pattern.
-                  </p>
-                </div>
-                <BuildExerciseButton />
-              </div>
-            </div>
-
-            <div className="mt-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
-              <p className="font-medium text-slate-900">Suggested flow</p>
-              <p className="mt-1">
-                Start with one focused workout and one or two carefully recorded
-                exercises. Scale from there as your plan evolves.
-              </p>
-            </div>
+            <h2 className="text-sm font-semibold text-slate-900">
+              Workout History
+            </h2>
+            <p className="mt-1 text-xs text-slate-500">
+              Your past sessions and stats
+            </p>
           </section>
         </main>
       </div>
