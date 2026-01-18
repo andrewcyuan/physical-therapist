@@ -79,7 +79,6 @@ function OvershootInsightsBox() {
       </div>
     );
   }
-
   return <OvershootInsightsInner />;
 }
 
