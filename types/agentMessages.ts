@@ -21,7 +21,13 @@ export type ExerciseSwitchMessage = {
   isNewExercise: boolean;
 };
 
+export type VisionContextMessage = {
+  type: "vision-context";
+  context: string;
+};
+
 export type AgentMessage =
   | ExerciseContextMessage
   | FormAlertMessage
-  | ExerciseSwitchMessage;
+  | ExerciseSwitchMessage
+  | VisionContextMessage;

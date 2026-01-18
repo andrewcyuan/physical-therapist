@@ -9,7 +9,7 @@ export class PushupDetector extends FormDetector {
             startPosition: (angles) => {
                 const avgElbow = (angles.leftElbow + angles.rightElbow) / 2;
                 const avgShoulder = (angles.leftShoulder + angles.rightShoulder) / 2;
-                return avgElbow > 160 && avgShoulder < 60; // Arms straight, shoulders engaged
+                return avgElbow > 150 && avgShoulder < 85; // Arms straight, shoulders engaged
             },
 
             // Eccentric starts: elbows begin to bend

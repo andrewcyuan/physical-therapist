@@ -62,7 +62,7 @@ function ExerciseContextSender() {
         err,
       );
     }
-  }, [room, workout, currentExerciseIndex, currentSetIndex]);
+  }, [room, room?.state, workout, currentExerciseIndex, currentSetIndex]);
 
   return null;
 }
@@ -123,7 +123,7 @@ function ExerciseSwitchSender() {
         err,
       );
     }
-  }, [room, workout, currentExerciseIndex, currentSetIndex]);
+  }, [room, room?.state, workout, currentExerciseIndex, currentSetIndex]);
 
   return null;
 }

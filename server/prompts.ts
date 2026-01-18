@@ -2,6 +2,7 @@ import type {
   ExerciseContextMessage,
   ExerciseSwitchMessage,
   FormAlertMessage,
+  VisionContextMessage,
 } from "../types/agentMessages";
 
 export const PT_INSTRUCTIONS = `You are a friendly and knowledgeable physical therapy assistant. Your role is to help users with their physical therapy exercises and answer questions about their workout routines.
@@ -24,10 +25,7 @@ Important guidelines:
 Remember: You are an assistant to support their physical therapy journey, not a replacement for professional medical advice.`;
 
 export const buildGreetingPrompt = (message: ExerciseContextMessage) =>
-  `Greet the user warmly. They are doing the "${message.workout.name}" workout.
-They are starting with ${message.currentExercise.name}: ${message.currentExercise.description}
-They should do ${message.reps} reps for ${message.sets} sets.
-Briefly explain the exercise and remind them about their positioning: ${message.currentExercise.orientation}`;
+  `Greet the user briefly and let them know you're ready to help with their ${message.currentExercise.name}. Keep it short.`;
 
 export const buildFormAlertSayMessage = (
   message: FormAlertMessage,
@@ -51,3 +49,6 @@ export const buildExerciseSwitchSayMessage = (message: ExerciseSwitchMessage) =>
   }
   return `It's time for set ${message.currentSet} of ${message.totalSets}!`;
 };
+
+export const buildVisionContextSystemMessage = (message: VisionContextMessage) =>
+  `Current form observation: ${message.context}`;

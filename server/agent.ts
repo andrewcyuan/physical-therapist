@@ -18,6 +18,7 @@ import type {
   ExerciseContextMessage,
   ExerciseSwitchMessage,
   FormAlertMessage,
+  VisionContextMessage,
 } from "../types/agentMessages";
 import {
   PT_INSTRUCTIONS,
@@ -25,9 +26,10 @@ import {
   buildExerciseSwitchSayMessage,
   buildFormAlertSayMessage,
   buildGreetingPrompt,
+  buildVisionContextSystemMessage,
 } from "./prompts";
 
-type AgentMessage = ExerciseContextMessage | FormAlertMessage | ExerciseSwitchMessage;
+type AgentMessage = ExerciseContextMessage | FormAlertMessage | ExerciseSwitchMessage | VisionContextMessage;
 
 // Load env from root .env.local
 dotenv.config({ path: ".env.local" });
@@ -79,6 +81,7 @@ export default defineAgent({
 
     let exerciseContext: ExerciseContextMessage | null = null;
     let exerciseContextMessageId: string | null = null;
+    let visionContextMessageId: string | null = null;
     let hasGreeted = false;
     const decoder = new TextDecoder();
 
@@ -120,6 +123,24 @@ export default defineAgent({
 
         if (message.type === "exercise_switch") {
           session.say(buildExerciseSwitchSayMessage(message));
+        }
+
+        if (message.type === "vision-context") {
+          const chatCtx = assistant.chatCtx.copy();
+
+          if (visionContextMessageId) {
+            const previousIndex = chatCtx.indexById(visionContextMessageId);
+            if (previousIndex !== undefined) {
+              chatCtx.items.splice(previousIndex, 1);
+            }
+          }
+
+          const contextMessage = chatCtx.addMessage({
+            role: "system",
+            content: buildVisionContextSystemMessage(message),
+          });
+          visionContextMessageId = contextMessage.id;
+          await assistant.updateChatCtx(chatCtx);
         }
       } catch (err) {
         console.error("Failed to parse data message:", err);
