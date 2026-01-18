@@ -107,7 +107,7 @@ function ConnectedVoiceAgent({ onDisconnect }: { onDisconnect: () => void }) {
             ? "Speaking..."
             : state === "thinking"
               ? "Thinking..."
-              : "Connected"}
+              : "Idle"}
       </span>
 
       {/* Mute button */}
