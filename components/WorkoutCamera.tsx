@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import {
   PoseLandmarker,
   FaceLandmarker,
+  HandLandmarker,
   FilesetResolver,
   DrawingUtils,
 } from "@mediapipe/tasks-vision";
@@ -17,6 +18,7 @@ export default function WorkoutCamera({ isActive = true }: WorkoutCameraProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const poseLandmarkerRef = useRef<PoseLandmarker | null>(null);
   const faceLandmarkerRef = useRef<FaceLandmarker | null>(null);
+  const handLandmarkerRef = useRef<HandLandmarker | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
@@ -67,24 +69,42 @@ export default function WorkoutCamera({ isActive = true }: WorkoutCameraProps) {
           numPoses: 1,
         });
 
-        const faceLandmarker = await FaceLandmarker.createFromOptions(vision, {
-          baseOptions: {
-            modelAssetPath:
-              "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
-            delegate: "GPU",
+        const faceLandmarker = await FaceLandmarker.createFromOptions(
+          vision,
+          {
+            baseOptions: {
+              modelAssetPath:
+                "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
+              delegate: "GPU",
+            },
+            runningMode: "VIDEO",
+            numFaces: 1,
           },
-          runningMode: "VIDEO",
-          numFaces: 1,
-        });
+        );
+
+        const handLandmarker = await HandLandmarker.createFromOptions(
+          vision,
+          {
+            baseOptions: {
+              modelAssetPath:
+                "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
+              delegate: "GPU",
+            },
+            runningMode: "VIDEO",
+            numHands: 2,
+          },
+        );
 
         if (!isMounted) {
           poseLandmarker.close();
           faceLandmarker.close();
+          handLandmarker.close();
           return;
         }
 
         poseLandmarkerRef.current = poseLandmarker;
         faceLandmarkerRef.current = faceLandmarker;
+        handLandmarkerRef.current = handLandmarker;
 
         // Get webcam access - request higher resolution for fullscreen
         const stream = await navigator.mediaDevices.getUserMedia({
@@ -143,6 +163,10 @@ export default function WorkoutCamera({ isActive = true }: WorkoutCameraProps) {
             ? faceLandmarkerRef.current.detectForVideo(video, performance.now())
             : null;
 
+          const handResults = handLandmarkerRef.current
+            ? handLandmarkerRef.current.detectForVideo(video, performance.now())
+            : null;
+
           // Clear canvas
           ctx.clearRect(0, 0, canvas.width, canvas.height);
 
@@ -164,7 +188,11 @@ export default function WorkoutCamera({ isActive = true }: WorkoutCameraProps) {
             }
           }
 
-          if (faceResults && faceResults.faceLandmarks && faceResults.faceLandmarks.length > 0) {
+          if (
+            faceResults &&
+            faceResults.faceLandmarks &&
+            faceResults.faceLandmarks.length > 0
+          ) {
             const drawingUtils = new DrawingUtils(ctx);
 
             for (const faceLandmarks of faceResults.faceLandmarks) {
@@ -172,6 +200,28 @@ export default function WorkoutCamera({ isActive = true }: WorkoutCameraProps) {
                 color: "#38bdf8",
                 lineWidth: 1,
                 radius: 2,
+              });
+            }
+          }
+
+          if (
+            handResults &&
+            handResults.landmarks &&
+            handResults.landmarks.length > 0
+          ) {
+            const drawingUtils = new DrawingUtils(ctx);
+
+            for (const landmarks of handResults.landmarks) {
+              drawingUtils.drawConnectors(
+                landmarks,
+                HandLandmarker.HAND_CONNECTIONS,
+                { color: "#f97316", lineWidth: 3 },
+              );
+
+              drawingUtils.drawLandmarks(landmarks, {
+                color: "#fed7aa",
+                lineWidth: 1,
+                radius: 4,
               });
             }
           }
@@ -203,6 +253,10 @@ export default function WorkoutCamera({ isActive = true }: WorkoutCameraProps) {
       if (faceLandmarkerRef.current) {
         faceLandmarkerRef.current.close();
         faceLandmarkerRef.current = null;
+      }
+      if (handLandmarkerRef.current) {
+        handLandmarkerRef.current.close();
+        handLandmarkerRef.current = null;
       }
     };
   }, [isActive, stopTracking]);

@@ -27,6 +27,14 @@ function ExerciseContextSender() {
   useEffect(() => {
     if (!room || !workout) return;
 
+    if (room.state !== "connected") {
+      console.warn(
+        "[ExerciseContextSender] Room not connected, skipping context publish. State:",
+        room.state,
+      );
+      return;
+    }
+
     const exerciseSet = workout.exercises[currentExerciseIndex];
     if (!exerciseSet) return;
 
@@ -44,10 +52,16 @@ function ExerciseContextSender() {
     };
 
     const encoder = new TextEncoder();
-    room.localParticipant.publishData(
-      encoder.encode(JSON.stringify(message)),
-      { reliable: true }
-    );
+    const payload = encoder.encode(JSON.stringify(message));
+
+    try {
+      room.localParticipant.publishData(payload, { reliable: true });
+    } catch (err) {
+      console.error(
+        "[ExerciseContextSender] Failed to publish exercise context:",
+        err,
+      );
+    }
   }, [room, workout, currentExerciseIndex, currentSetIndex]);
 
   return null;
@@ -64,6 +78,14 @@ function ExerciseSwitchSender() {
 
   useEffect(() => {
     if (!room || !workout) return;
+
+    if (room.state !== "connected") {
+      console.warn(
+        "[ExerciseSwitchSender] Room not connected, skipping switch publish. State:",
+        room.state,
+      );
+      return;
+    }
 
     const exerciseSet = workout.exercises[currentExerciseIndex];
     if (!exerciseSet) return;
@@ -89,9 +111,18 @@ function ExerciseSwitchSender() {
     };
 
     const encoder = new TextEncoder();
-    room.localParticipant.publishData(encoder.encode(JSON.stringify(message)), {
-      reliable: true,
-    });
+    const payload = encoder.encode(JSON.stringify(message));
+
+    try {
+      room.localParticipant.publishData(payload, {
+        reliable: true,
+      });
+    } catch (err) {
+      console.error(
+        "[ExerciseSwitchSender] Failed to publish exercise switch:",
+        err,
+      );
+    }
   }, [room, workout, currentExerciseIndex, currentSetIndex]);
 
   return null;
