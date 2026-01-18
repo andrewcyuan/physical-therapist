@@ -19,7 +19,7 @@ export class SquatDetector extends FormDetector {
 
             turnaroundReached: (angles) => {
                 const avgKnee = (angles.leftKnee + angles.rightKnee) / 2;
-                return avgKnee < 120; // Below parallel
+                return avgKnee < 90;
             },
 
             concentricStarted: (current, previous) => {
