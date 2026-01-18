@@ -138,7 +138,7 @@ export function useOvershootVision({
   }, [overshootApiKey, sendVisionContext]);
 
   useEffect(() => {
-    if (!enabled || !room) {
+    if (!enabled) {
       if (visionRef.current) {
         visionRef.current.stop().catch(console.error);
         visionRef.current = null;
@@ -146,24 +146,15 @@ export function useOvershootVision({
       return;
     }
 
-    const handleConnected = async () => {
-      await initializeOvershoot();
-    };
-
-    if (room.state === "connected") {
-      initializeOvershoot();
-    } else {
-      room.on("connected", handleConnected);
-    }
+    initializeOvershoot();
 
     return () => {
-      room?.off("connected", handleConnected);
       if (visionRef.current) {
         visionRef.current.stop().catch(console.error);
         visionRef.current = null;
       }
     };
-  }, [enabled, room, initializeOvershoot]);
+  }, [enabled, initializeOvershoot]);
 
   return {
     isInitialized,

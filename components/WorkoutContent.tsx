@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { useWorkoutStore, type Workout } from "@/lib/stores/workoutStore";
-import { VoiceAgentProvider, useVoiceAgentContext } from "./VoiceAgent";
+import { VoiceAgentProvider } from "./VoiceAgent";
 import WorkoutCamera from "./WorkoutCamera";
 import WorkoutOverlay from "./WorkoutOverlay";
 import { useOvershootVision } from "./VoiceAgent/useOvershootVision";
@@ -31,10 +31,6 @@ function OvershootInsightsInner() {
 }
 
 function OvershootInsightsBox() {
-  const { isConnected } = useVoiceAgentContext();
-
-  if (!isConnected) return null;
-
   return <OvershootInsightsInner />;
 }
 
