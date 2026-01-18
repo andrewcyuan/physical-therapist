@@ -51,11 +51,14 @@ function ExerciseContextSender() {
       reps: exerciseSet.num_reps,
     };
 
+    console.log("[ExerciseContextSender] 📤 Sending exercise context:", JSON.stringify(message, null, 2));
+
     const encoder = new TextEncoder();
     const payload = encoder.encode(JSON.stringify(message));
 
     try {
       room.localParticipant.publishData(payload, { reliable: true });
+      console.log("[ExerciseContextSender] ✓ Exercise context sent successfully");
     } catch (err) {
       console.error(
         "[ExerciseContextSender] Failed to publish exercise context:",

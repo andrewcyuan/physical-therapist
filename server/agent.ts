@@ -86,7 +86,7 @@ export default defineAgent({
     const decoder = new TextDecoder();
 
     ctx.room.on("dataReceived", async (payload: Uint8Array, participant, kind) => {
-      if (kind !== DataPacketKind.KIND_RELIABLE) return;
+      if (kind !== undefined && kind !== DataPacketKind.KIND_RELIABLE) return;
 
       try {
         const message = JSON.parse(decoder.decode(payload)) as AgentMessage;

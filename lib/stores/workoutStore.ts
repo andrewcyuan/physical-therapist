@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { RepCheckInstructions } from "@/types/repCheckInstructions";
 
 export interface Exercise {
   id: string;
@@ -6,6 +7,7 @@ export interface Exercise {
   description: string;
   threshold_data: object;
   orientation_instructions: string;
+  rep_check_instructions?: RepCheckInstructions | null;
 }
 
 export interface ExerciseSet {
@@ -30,6 +32,7 @@ interface WorkoutState {
   currentExerciseIndex: number;
   currentSetIndex: number;
   isActive: boolean;
+  isCelebrating: boolean;
 
   // Actions
   setWorkout: (workout: Workout) => void;
@@ -37,6 +40,8 @@ interface WorkoutState {
   next: () => void;
   prev: () => void;
   goToExercise: (exerciseIndex: number, setIndex?: number) => void;
+  startCelebration: () => void;
+  endCelebration: () => void;
   reset: () => void;
 }
 
@@ -45,10 +50,15 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
   currentExerciseIndex: 0,
   currentSetIndex: 0,
   isActive: false,
+  isCelebrating: false,
 
   setWorkout: (workout) => set({ workout, currentExerciseIndex: 0, currentSetIndex: 0 }),
 
   startWorkout: () => set({ isActive: true }),
+
+  startCelebration: () => set({ isCelebrating: true }),
+
+  endCelebration: () => set({ isCelebrating: false }),
 
   next: () => {
     const { workout, currentExerciseIndex, currentSetIndex } = get();
@@ -91,7 +101,7 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
     set({ currentExerciseIndex: exerciseIndex, currentSetIndex: validSetIndex });
   },
 
-  reset: () => set({ currentExerciseIndex: 0, currentSetIndex: 0, isActive: false }),
+  reset: () => set({ currentExerciseIndex: 0, currentSetIndex: 0, isActive: false, isCelebrating: false }),
 }));
 
 // Selector hooks for convenience

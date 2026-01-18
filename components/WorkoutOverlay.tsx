@@ -10,6 +10,7 @@ import WorkoutPhaseStats from "./WorkoutPhaseStats";
 export default function WorkoutOverlay() {
   const workout = useWorkoutStore((state) => state.workout);
   const currentSetIndex = useWorkoutStore((state) => state.currentSetIndex);
+  const isCelebrating = useWorkoutStore((state) => state.isCelebrating);
   const next = useWorkoutStore((state) => state.next);
   const prev = useWorkoutStore((state) => state.prev);
   const currentExerciseSet = useCurrentExercise();
@@ -58,7 +59,15 @@ export default function WorkoutOverlay() {
       </div>
 
       {/* Spacer */}
-      <div className="flex-1" />
+      <div className="flex-1 flex items-center justify-center">
+        {isCelebrating && (
+          <div className="animate-in fade-in zoom-in duration-500 rounded-2xl bg-green-500/90 px-12 py-6 backdrop-blur-sm">
+            <p className="text-4xl font-bold text-white drop-shadow-lg">
+              Good job!
+            </p>
+          </div>
+        )}
+      </div>
 
       {/* Bottom Gradient */}
       <div className="pointer-events-auto bg-gradient-to-t from-black/80 via-black/50 to-transparent px-4 pb-8 pt-20">
@@ -76,7 +85,7 @@ export default function WorkoutOverlay() {
                 {exercise.orientation_instructions}
               </p>
             </div>
-            <WorkoutPhaseStats exerciseId={exercise.id} />
+            <WorkoutPhaseStats />
           </div>
 
           {/* Navigation + Progress Bar */}

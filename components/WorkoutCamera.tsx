@@ -57,9 +57,11 @@ function drawAngleLabel(
 
 interface WorkoutCameraProps {
   isActive?: boolean;
+  enableRepCounting?: boolean;
+  onCanvasReady?: (canvas: HTMLCanvasElement | null) => void;
 }
 
-export default function WorkoutCamera({ isActive = true }: WorkoutCameraProps) {
+export default function WorkoutCamera({ isActive = true, enableRepCounting = true, onCanvasReady }: WorkoutCameraProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const poseLandmarkerRef = useRef<PoseLandmarker | null>(null);
@@ -91,6 +93,17 @@ export default function WorkoutCamera({ isActive = true }: WorkoutCameraProps) {
   }, []);
 
   useEffect(() => {
+    if (onCanvasReady) {
+      onCanvasReady(canvasRef.current);
+    }
+  }, [onCanvasReady]);
+
+  useEffect(() => {
+    if (!enableRepCounting) {
+      detectorRef.current = null;
+      return;
+    }
+
     const exerciseId = currentExercise?.exercises.id;
     const exerciseName = currentExercise?.exercises.name;
     const thresholdData = currentExercise?.exercises
@@ -114,7 +127,7 @@ export default function WorkoutCamera({ isActive = true }: WorkoutCameraProps) {
     }
     detectorRef.current = detector;
     resetRepCounter();
-  }, [currentExercise, incrementAttempted, incrementCompleted, setPhase, resetRepCounter]);
+  }, [currentExercise, enableRepCounting, incrementAttempted, incrementCompleted, setPhase, resetRepCounter]);
 
   useEffect(() => {
     if (!isActive) {
