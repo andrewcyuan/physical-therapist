@@ -620,13 +620,8 @@ function TrimStep({
   onBack,
 }: TrimStepProps) {
   const trimVideoRef = useRef<HTMLVideoElement>(null);
-  const [currentFrame, setCurrentFrame] = useState(0);
+  const [currentFrame, setCurrentFrame] = useState(trimStart);
   const [isPlaying, setIsPlaying] = useState(false);
-
-  useEffect(() => {
-    if (step !== "trimming") return;
-    setCurrentFrame(trimStart);
-  }, [step, trimStart]);
 
   useEffect(() => {
     if (!trimVideoRef.current || !recordedFrames[currentFrame]) return;

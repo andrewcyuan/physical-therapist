@@ -7,6 +7,7 @@ import {
   useVoiceAssistant,
   BarVisualizer,
 } from "@livekit/components-react";
+import { useState } from "react";
 
 export function VoiceAgentButton() {
   const { isConnected, isConnecting, error, connect, disconnect } =
@@ -58,6 +59,13 @@ function ConnectedVoiceAgent({ onDisconnect }: { onDisconnect: () => void }) {
   const { state, audioTrack } = useVoiceAssistant();
 
   const isMuted = !localParticipant.isMicrophoneEnabled;
+  const [barHeights] = useState<number[]>(() => [
+    8 + Math.random() * 8,
+    8 + Math.random() * 8,
+    8 + Math.random() * 8,
+    8 + Math.random() * 8,
+    8 + Math.random() * 8,
+  ]);
 
   const toggleMute = async () => {
     await localParticipant.setMicrophoneEnabled(isMuted);
@@ -76,7 +84,7 @@ function ConnectedVoiceAgent({ onDisconnect }: { onDisconnect: () => void }) {
           />
         ) : (
           <div className="flex items-center gap-0.5">
-            {[...Array(5)].map((_, i) => (
+            {barHeights.map((height, i) => (
               <div
                 key={i}
                 className={`w-1 rounded-full ${
@@ -84,7 +92,7 @@ function ConnectedVoiceAgent({ onDisconnect }: { onDisconnect: () => void }) {
                     ? "animate-pulse bg-green-500"
                     : "bg-gray-400"
                 }`}
-                style={{ height: `${8 + Math.random() * 8}px` }}
+                style={{ height: `${height}px` }}
               />
             ))}
           </div>
