@@ -47,6 +47,28 @@ export default function WorkoutCamera({ isActive = true }: WorkoutCameraProps) {
 
     let isMounted = true;
 
+    // Helper to safely close landmarkers without triggering XNNPACK console "errors" (actually info logs)
+    const safeClose = (landmarker: { close: () => void }) => {
+      const originalError = console.error;
+      console.error = (...args) => {
+        if (
+          args[0] &&
+          typeof args[0] === "string" &&
+          args[0].includes("Created TensorFlow Lite XNNPACK delegate for CPU")
+        ) {
+          return;
+        }
+        originalError.apply(console, args);
+      };
+      try {
+        landmarker.close();
+      } catch (e) {
+        // Ignore close errors
+      } finally {
+        console.error = originalError;
+      }
+    };
+
     const initializePoseTracking = async () => {
       try {
         setIsLoading(true);
@@ -96,9 +118,9 @@ export default function WorkoutCamera({ isActive = true }: WorkoutCameraProps) {
         );
 
         if (!isMounted) {
-          poseLandmarker.close();
-          faceLandmarker.close();
-          handLandmarker.close();
+          safeClose(poseLandmarker);
+          safeClose(faceLandmarker);
+          safeClose(handLandmarker);
           return;
         }
 
@@ -247,15 +269,15 @@ export default function WorkoutCamera({ isActive = true }: WorkoutCameraProps) {
       isMounted = false;
       stopTracking();
       if (poseLandmarkerRef.current) {
-        poseLandmarkerRef.current.close();
+        safeClose(poseLandmarkerRef.current);
         poseLandmarkerRef.current = null;
       }
       if (faceLandmarkerRef.current) {
-        faceLandmarkerRef.current.close();
+        safeClose(faceLandmarkerRef.current);
         faceLandmarkerRef.current = null;
       }
       if (handLandmarkerRef.current) {
-        handLandmarkerRef.current.close();
+        safeClose(handLandmarkerRef.current);
         handLandmarkerRef.current = null;
       }
     };

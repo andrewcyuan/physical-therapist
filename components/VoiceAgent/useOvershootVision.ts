@@ -86,9 +86,15 @@ export function useOvershootVision({
 
     if (!overshootApiKey) {
       console.warn(
-        "[OvershootVision] ⚠ No Overshoot API key configured (NEXT_PUBLIC_OVERSHOOT_API_KEY). Vision will not start.",
+        "[OvershootVision] ⚠ No Overshoot API key configured. Make sure NEXT_PUBLIC_OVERSHOOT_API_KEY is set in your environment variables (e.g. Vercel Project Settings).",
       );
       return;
+    } else {
+      console.log(
+        "[OvershootVision] 🔑 API Key found (starts with: " +
+          overshootApiKey.substring(0, 8) +
+          "...)",
+      );
     }
 
     try {
@@ -147,11 +153,16 @@ export function useOvershootVision({
     }
 
     const handleConnected = async () => {
+      // Small delay to ensure connection is stable and data channels are ready
+      await new Promise((resolve) => setTimeout(resolve, 1000));
       await initializeOvershoot();
     };
 
     if (room.state === "connected") {
-      initializeOvershoot();
+      // Small delay to ensure connection is stable
+      setTimeout(() => {
+        initializeOvershoot();
+      }, 1000);
     } else {
       room.on("connected", handleConnected);
     }
