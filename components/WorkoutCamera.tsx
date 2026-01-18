@@ -5,12 +5,55 @@ import {
   PoseLandmarker,
   FilesetResolver,
   DrawingUtils,
+  NormalizedLandmark,
 } from "@mediapipe/tasks-vision";
 import { useCurrentExercise } from "@/lib/stores/workoutStore";
 import { useRepCounterStore } from "@/lib/stores/repCounterStore";
 import { getDetectorForExercise } from "@/lib/form/detectors";
-import { extractJointAngles } from "@/lib/poseUtils";
+import { extractJointAngles, JointAngles } from "@/lib/poseUtils";
 import type { FormDetector } from "@/lib/form/FormDetector";
+
+const LANDMARK_INDICES = {
+  LEFT_SHOULDER: 11,
+  RIGHT_SHOULDER: 12,
+  LEFT_ELBOW: 13,
+  RIGHT_ELBOW: 14,
+  LEFT_WRIST: 15,
+  RIGHT_WRIST: 16,
+  LEFT_HIP: 23,
+  RIGHT_HIP: 24,
+  LEFT_KNEE: 25,
+  RIGHT_KNEE: 26,
+  LEFT_ANKLE: 27,
+  RIGHT_ANKLE: 28,
+};
+
+function drawAngleLabel(
+  ctx: CanvasRenderingContext2D,
+  landmark: NormalizedLandmark,
+  angle: number,
+  label: string,
+  canvasWidth: number,
+  canvasHeight: number
+) {
+  const x = landmark.x * canvasWidth;
+  const y = landmark.y * canvasHeight;
+
+  ctx.save();
+  ctx.translate(x + 10, y);
+  ctx.scale(-1, 1);
+
+  ctx.font = "bold 14px sans-serif";
+  ctx.fillStyle = "#ffffff";
+  ctx.strokeStyle = "#000000";
+  ctx.lineWidth = 3;
+
+  const text = `${label}: ${angle}°`;
+  ctx.strokeText(text, 0, 0);
+  ctx.fillText(text, 0, 0);
+
+  ctx.restore();
+}
 
 interface WorkoutCameraProps {
   isActive?: boolean;
@@ -176,9 +219,25 @@ export default function WorkoutCamera({ isActive = true }: WorkoutCameraProps) {
                 radius: 5,
               });
 
+              const angles = extractJointAngles(landmarks);
+
+              // Draw angle labels at each joint
+              const L = LANDMARK_INDICES;
+              drawAngleLabel(ctx, landmarks[L.LEFT_ELBOW], angles.leftElbow, "L Elbow", canvas.width, canvas.height);
+              drawAngleLabel(ctx, landmarks[L.RIGHT_ELBOW], angles.rightElbow, "R Elbow", canvas.width, canvas.height);
+              drawAngleLabel(ctx, landmarks[L.LEFT_SHOULDER], angles.leftShoulder, "L Shoulder", canvas.width, canvas.height);
+              drawAngleLabel(ctx, landmarks[L.RIGHT_SHOULDER], angles.rightShoulder, "R Shoulder", canvas.width, canvas.height);
+              drawAngleLabel(ctx, landmarks[L.LEFT_HIP], angles.leftHip, "L Hip", canvas.width, canvas.height);
+              drawAngleLabel(ctx, landmarks[L.RIGHT_HIP], angles.rightHip, "R Hip", canvas.width, canvas.height);
+              drawAngleLabel(ctx, landmarks[L.LEFT_KNEE], angles.leftKnee, "L Knee", canvas.width, canvas.height);
+              drawAngleLabel(ctx, landmarks[L.RIGHT_KNEE], angles.rightKnee, "R Knee", canvas.width, canvas.height);
+              drawAngleLabel(ctx, landmarks[L.LEFT_ANKLE], angles.leftAnkle, "L Ankle", canvas.width, canvas.height);
+              drawAngleLabel(ctx, landmarks[L.RIGHT_ANKLE], angles.rightAnkle, "R Ankle", canvas.width, canvas.height);
+              drawAngleLabel(ctx, landmarks[L.LEFT_WRIST], angles.leftWrist, "L Wrist", canvas.width, canvas.height);
+              drawAngleLabel(ctx, landmarks[L.RIGHT_WRIST], angles.rightWrist, "R Wrist", canvas.width, canvas.height);
+
               // Process through form detector if available
               if (detectorRef.current) {
-                const angles = extractJointAngles(landmarks);
                 detectorRef.current.processFrame({
                   timestamp: performance.now(),
                   angles,

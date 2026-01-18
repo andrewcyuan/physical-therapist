@@ -11,6 +11,24 @@ type WorkoutInput = {
   exercises: ExerciseSet[];
 };
 
+interface DbExerciseSet {
+  id: string;
+  exercise_id: string;
+  num_sets: number;
+  num_reps: number;
+  rest_between: number;
+}
+
+function normalizeExerciseSets(exerciseSets: ExerciseSet[]): DbExerciseSet[] {
+  return exerciseSets.map((es) => ({
+    id: es.id,
+    exercise_id: es.exercises.id,
+    num_sets: es.num_sets,
+    num_reps: es.num_reps,
+    rest_between: es.rest_between,
+  }));
+}
+
 export function useSaveWorkout() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<Error | null>(null);
@@ -23,13 +41,14 @@ export function useSaveWorkout() {
     setError(null);
 
     const supabase = createClient();
+    const normalizedExercises = normalizeExerciseSets(workout.exercises);
     const { data, error: saveError } = await supabase
       .from("workouts")
       .insert({
         name: workout.name,
         difficulty: workout.difficulty,
         time: workout.time,
-        exercises: workout.exercises,
+        exercises: normalizedExercises,
         owner: userId,
       })
       .select()

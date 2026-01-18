@@ -12,7 +12,7 @@ interface WorkoutContentProps {
 }
 
 function OvershootInsightsInner() {
-  const { status, error, currentContext } = useOvershootVision({ enabled: true });
+  const { status, error, currentContext } = useOvershootVision({ enabled: false });
 
   // Only hide if completely idle
   if (status === "idle") return null;
